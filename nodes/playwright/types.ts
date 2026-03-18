@@ -1,29 +1,16 @@
-
 export interface IBrowserOptions {
-    headless?: boolean;
-    slowMo?: number;
-}
-
-
-export interface BrowserPaths {
-    chromium: {
-        windows: string[];
-        linux: string[];
-        darwin: string[];
-    };
-    firefox: {
-        windows: string[];
-        linux: string[];
-        darwin: string[];
-    };
-    webkit: {
-        windows: string[];
-        linux: string[];
-        darwin: string[];
-    };
+	timeout?: number;
 }
 
 export interface IScreenshotOptions {
-    fullPage?: boolean;
-    path?: string;
+	fullPage?: boolean;
+	path?: string;
 }
+
+export interface IDownloadOptions {
+	clickTimeout?: number;
+	waitTimeout?: number;
+	preferPopupPage?: boolean;
+}
+
+export type DownloadSource = 'element' | 'url';

@@ -1,9 +1,9 @@
 import {
-    INodeType,
-    INodeExecutionData,
-    IExecuteFunctions,
-    INodeTypeDescription,
-    NodeOperationError,
+	INodeType,
+	INodeExecutionData,
+	IExecuteFunctions,
+	INodeTypeDescription,
+	NodeOperationError,
 } from 'n8n-workflow';
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
@@ -11,136 +11,136 @@ import { IBrowserOptions } from './types';
 import { closeSession, getOrCreateSession, getSessionKey } from './sessionStore';
 
 type ExecutionFunctionsWithExecutionId = IExecuteFunctions & {
-    getExecutionId?: () => string;
+	getExecutionId?: () => string;
 };
 
 export class Playwright implements INodeType {
-    description: INodeTypeDescription = {
-        displayName: 'Playwright',
-        name: 'playwright',
-        icon: 'file:playwright.svg',
-        group: ['automation'],
-        version: 1,
-        subtitle: '={{$parameter["operation"]}}',
-        description: 'Automate browser actions using Playwright',
-        defaults: {
-            name: 'Playwright',
-        },
-        inputs: ['main'],
-        outputs: ['main'],
+	description: INodeTypeDescription = {
+		displayName: 'Playwright',
+		name: 'playwright',
+		icon: 'file:playwright.svg',
+		group: ['automation'],
+		version: 1,
+		subtitle: '={{$parameter["operation"]}}',
+		description: 'Automate browser actions using Playwright',
+		defaults: {
+			name: 'Playwright',
+		},
+		inputs: ['main'],
+		outputs: ['main'],
 
-        properties: [
-            {
-                displayName: 'Operation',
-                name: 'operation',
-                type: 'options',
-                noDataExpression: true,
-                options: [
-                    {
-                        name: 'Click Element',
-                        value: 'clickElement',
-                        description: 'Click on an element',
-                        action: 'Click on an element',
-                    },
-                    {
-                        name: 'Close Session',
-                        value: 'closeSession',
-                        description: 'Close the current browser session',
-                        action: 'Close the current browser session',
-                    },
-                    {
-                        name: 'Download File',
-                        value: 'downloadFile',
-                        description: 'Click an element or fetch a direct URL and capture the file',
-                        action: 'Download a file',
-                    },
-                    {
-                        name: 'Fill Form',
-                        value: 'fillForm',
-                        description: 'Fill one or more form fields',
-                        action: 'Fill one or more form fields',
-                    },
-                    {
-                        name: 'Get Text',
-                        value: 'getText',
-                        description: 'Get text from an element',
-                        action: 'Get text from an element',
-                    },
-                    {
-                        name: 'Navigate',
-                        value: 'navigate',
-                        description: 'Navigate to a URL',
-                        action: 'Navigate to a URL',
-                    },
-                    {
-                        name: 'Run Custom Script',
-                        value: 'runCustomScript',
-                        description: 'Execute custom JavaScript code with full Playwright API access',
-                        action: 'Run custom java script code',
-                    },
-                    {
-                        name: 'Take Screenshot',
-                        value: 'takeScreenshot',
-                        description: 'Take a screenshot of the current page',
-                        action: 'Take a screenshot of the current page',
-                    },
-                ],
-                default: 'navigate',
-            },
+		properties: [
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Click Element',
+						value: 'clickElement',
+						description: 'Click on an element',
+						action: 'Click on an element',
+					},
+					{
+						name: 'Close Session',
+						value: 'closeSession',
+						description: 'Close the current browser session',
+						action: 'Close the current browser session',
+					},
+					{
+						name: 'Download File',
+						value: 'downloadFile',
+						description: 'Click an element or fetch a direct URL and capture the file',
+						action: 'Download a file',
+					},
+					{
+						name: 'Fill Form',
+						value: 'fillForm',
+						description: 'Fill one or more form fields',
+						action: 'Fill one or more form fields',
+					},
+					{
+						name: 'Get Text',
+						value: 'getText',
+						description: 'Get text from an element',
+						action: 'Get text from an element',
+					},
+					{
+						name: 'Navigate',
+						value: 'navigate',
+						description: 'Navigate to a URL',
+						action: 'Navigate to a URL',
+					},
+					{
+						name: 'Run Custom Script',
+						value: 'runCustomScript',
+						description: 'Execute custom JavaScript code with full Playwright API access',
+						action: 'Run custom java script code',
+					},
+					{
+						name: 'Take Screenshot',
+						value: 'takeScreenshot',
+						description: 'Take a screenshot of the current page',
+						action: 'Take a screenshot of the current page',
+					},
+				],
+				default: 'navigate',
+			},
 
-            {
-                displayName: 'URL',
-                name: 'url',
-                type: 'string',
-                default: '',
-                placeholder: 'https://example.com',
-                description: 'The URL to navigate to',
-                displayOptions: {
-                    show: {
-                        operation: ['navigate'],
-                    },
-                },
-                required: true,
-            },
+			{
+				displayName: 'URL',
+				name: 'url',
+				type: 'string',
+				default: '',
+				placeholder: 'https://example.com',
+				description: 'The URL to navigate to',
+				displayOptions: {
+					show: {
+						operation: ['navigate'],
+					},
+				},
+				required: true,
+			},
 
-            {
-                displayName: 'Session ID',
-                name: 'sessionId',
-                type: 'string',
-                default: '',
-                placeholder: 'optional-shared-session',
-                description:
-                    'Optional custom session ID. Leave empty to auto-share one session per workflow execution and item index.',
-                displayOptions: {
-                    hide: {
-                        operation: ['closeSession'],
-                    },
-                },
-            },
+			{
+				displayName: 'Session ID',
+				name: 'sessionId',
+				type: 'string',
+				default: '',
+				placeholder: 'optional-shared-session',
+				description:
+					'Optional custom session ID. Leave empty to auto-share one session per workflow execution and item index.',
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Leave Session Open',
-                name: 'leaveSessionOpen',
-                type: 'boolean',
-                default: true,
-                description: 'Whether to keep the browser session open for the next Playwright node',
-                displayOptions: {
-                    hide: {
-                        operation: ['closeSession'],
-                    },
-                },
-            },
+			{
+				displayName: 'Leave Session Open',
+				name: 'leaveSessionOpen',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to keep the browser session open for the next Playwright node',
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Script Code',
-                name: 'scriptCode',
-                type: 'string',
-                typeOptions: {
-                    editor: 'codeNodeEditor',
-                    editorLanguage: 'javaScript',
-                },
-                required: true,
-                default: `const title = await $page.title();
+			{
+				displayName: 'Script Code',
+				name: 'scriptCode',
+				type: 'string',
+				typeOptions: {
+					editor: 'codeNodeEditor',
+					editorLanguage: 'javaScript',
+				},
+				required: true,
+				default: `const title = await $page.title();
 
 return [{
     json: {
@@ -148,410 +148,413 @@ return [{
         url: $page.url()
     }
 }];`,
-                description:
-                    'JavaScript code to execute with Playwright. Access $page, $browser, $playwright, and all n8n Code node variables.',
-                noDataExpression: true,
-                displayOptions: {
-                    show: {
-                        operation: ['runCustomScript'],
-                    },
-                },
-            },
+				description:
+					'JavaScript code to execute with Playwright. Access $page, $browser, $playwright, and all n8n Code node variables.',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						operation: ['runCustomScript'],
+					},
+				},
+			},
 
-            {
-                displayName:
-                    'Use <code>$page</code>, <code>$browser</code>, or <code>$playwright</code> to access Playwright. <a target="_blank" href="https://docs.n8n.io/code-examples/methods-variables-reference/">Special vars/methods</a> are available. <br><br>Debug by using <code>console.log()</code> statements and viewing their output in the browser console.',
-                name: 'notice',
-                type: 'notice',
-                displayOptions: {
-                    show: {
-                        operation: ['runCustomScript'],
-                    },
-                },
-                default: '',
-            },
+			{
+				displayName:
+					'Use <code>$page</code>, <code>$browser</code>, or <code>$playwright</code> to access Playwright. <a target="_blank" href="https://docs.n8n.io/code-examples/methods-variables-reference/">Special vars/methods</a> are available. <br><br>Debug by using <code>console.log()</code> statements and viewing their output in the browser console.',
+				name: 'notice',
+				type: 'notice',
+				displayOptions: {
+					show: {
+						operation: ['runCustomScript'],
+					},
+				},
+				default: '',
+			},
 
-            {
-                displayName: 'Property Name',
-                name: 'dataPropertyName',
-                type: 'string',
-                required: true,
-                default: 'screenshot',
-                description: 'Name of the binary property in which to store the screenshot data',
-                displayOptions: {
-                    show: {
-                        operation: ['takeScreenshot'],
-                    },
-                },
-            },
+			{
+				displayName: 'Property Name',
+				name: 'dataPropertyName',
+				type: 'string',
+				required: true,
+				default: 'screenshot',
+				description: 'Name of the binary property in which to store the screenshot data',
+				displayOptions: {
+					show: {
+						operation: ['takeScreenshot'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Download Source',
-                name: 'downloadSource',
-                type: 'options',
-                options: [
-                    {
-                        name: 'Element',
-                        value: 'element',
-                        description: 'Click an element and capture the downloaded file',
-                    },
-                    {
-                        name: 'URL',
-                        value: 'url',
-                        description: 'Fetch a file directly from a URL',
-                    },
-                ],
-                default: 'element',
-                description: 'Choose whether to download from a page element or a direct URL',
-                displayOptions: {
-                    show: {
-                        operation: ['downloadFile'],
-                    },
-                },
-            },
+			{
+				displayName: 'Download Source',
+				name: 'downloadSource',
+				type: 'options',
+				options: [
+					{
+						name: 'Element',
+						value: 'element',
+						description: 'Click an element and capture the downloaded file',
+					},
+					{
+						name: 'URL',
+						value: 'url',
+						description: 'Fetch a file directly from a URL',
+					},
+				],
+				default: 'element',
+				description: 'Choose whether to download from a page element or a direct URL',
+				displayOptions: {
+					show: {
+						operation: ['downloadFile'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Selector Type',
-                name: 'selectorType',
-                type: 'options',
-                options: [
-                    {
-                        name: 'CSS Selector',
-                        value: 'css',
-                        description: 'Use CSS selector (e.g., #submit-button, .my-class)',
-                    },
-                    {
-                        name: 'XPath',
-                        value: 'xpath',
-                        description: 'Use XPath expression (e.g., //button[@ID="submit"])',
-                    },
-                ],
-                default: 'css',
-                description: 'Choose between CSS selector or XPath',
-                displayOptions: {
-                    show: {
-                        operation: ['getText', 'clickElement', 'downloadFile'],
-                    },
-                    hide: {
-                        downloadSource: ['url'],
-                    },
-                },
-            },
+			{
+				displayName: 'Selector Type',
+				name: 'selectorType',
+				type: 'options',
+				options: [
+					{
+						name: 'CSS Selector',
+						value: 'css',
+						description: 'Use CSS selector (e.g., #submit-button, .my-class)',
+					},
+					{
+						name: 'XPath',
+						value: 'xpath',
+						description: 'Use XPath expression (e.g., //button[@ID="submit"])',
+					},
+				],
+				default: 'css',
+				description: 'Choose between CSS selector or XPath',
+				displayOptions: {
+					show: {
+						operation: ['getText', 'clickElement', 'downloadFile'],
+					},
+					hide: {
+						downloadSource: ['url'],
+					},
+				},
+			},
 
-            {
-                displayName: 'CSS Selector',
-                name: 'selector',
-                type: 'string',
-                default: '',
-                placeholder: '#submit-button',
-                description: 'CSS selector for the element (e.g., #ID, .class, button[type="submit"])',
-                displayOptions: {
-                    show: {
-                        operation: ['getText', 'clickElement', 'downloadFile'],
-                        selectorType: ['css'],
-                    },
-                    hide: {
-                        downloadSource: ['url'],
-                    },
-                },
-                required: true,
-            },
+			{
+				displayName: 'CSS Selector',
+				name: 'selector',
+				type: 'string',
+				default: '',
+				placeholder: '#submit-button',
+				description: 'CSS selector for the element (e.g., #ID, .class, button[type="submit"])',
+				displayOptions: {
+					show: {
+						operation: ['getText', 'clickElement', 'downloadFile'],
+						selectorType: ['css'],
+					},
+					hide: {
+						downloadSource: ['url'],
+					},
+				},
+				required: true,
+			},
 
-            {
-                displayName: 'XPath',
-                name: 'xpath',
-                type: 'string',
-                default: '',
-                placeholder: '//button[@ID="submit"]',
-                description:
-                    'XPath expression for the element (e.g., //div[@class="content"], //button[text()="Click Me"])',
-                displayOptions: {
-                    show: {
-                        operation: ['getText', 'clickElement', 'downloadFile'],
-                        selectorType: ['xpath'],
-                    },
-                    hide: {
-                        downloadSource: ['url'],
-                    },
-                },
-                required: true,
-            },
+			{
+				displayName: 'XPath',
+				name: 'xpath',
+				type: 'string',
+				default: '',
+				placeholder: '//button[@ID="submit"]',
+				description:
+					'XPath expression for the element (e.g., //div[@class="content"], //button[text()="Click Me"])',
+				displayOptions: {
+					show: {
+						operation: ['getText', 'clickElement', 'downloadFile'],
+						selectorType: ['xpath'],
+					},
+					hide: {
+						downloadSource: ['url'],
+					},
+				},
+				required: true,
+			},
 
-            {
-                displayName: 'Fields',
-                name: 'fillFields',
-                type: 'fixedCollection',
-                typeOptions: {
-                    multipleValues: true,
-                },
-                default: {},
-                placeholder: 'Add Field',
-                description: 'Form fields to fill. XPath is detected automatically if the selector starts with / or (.',
-                displayOptions: {
-                    show: {
-                        operation: ['fillForm'],
-                    },
-                },
-                options: [
-                    {
-                        displayName: 'Field',
-                        name: 'fields',
-                        values: [
-                            {
-                                displayName: 'Selector',
-                                name: 'selector',
-                                type: 'string',
-                                default: '',
-                                placeholder: '#username or //input[@ID="username"]',
-                                description: 'CSS selector or XPath expression',
-                                required: true,
-                            },
-                            {
-                                displayName: 'Value',
-                                name: 'value',
-                                type: 'string',
-                                default: '',
-                                description: 'Value to fill in the selected field',
-                                required: true,
-                            },
-                        ],
-                    },
-                ],
-            },
+			{
+				displayName: 'Fields',
+				name: 'fillFields',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				default: {},
+				placeholder: 'Add Field',
+				description:
+					'Form fields to fill. XPath is detected automatically if the selector starts with / or (.',
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Field',
+						name: 'fields',
+						values: [
+							{
+								displayName: 'Selector',
+								name: 'selector',
+								type: 'string',
+								default: '',
+								placeholder: '#username or //input[@ID="username"]',
+								description: 'CSS selector or XPath expression',
+								required: true,
+							},
+							{
+								displayName: 'Value',
+								name: 'value',
+								type: 'string',
+								default: '',
+								description: 'Value to fill in the selected field',
+								required: true,
+							},
+						],
+					},
+				],
+			},
 
-            {
-                displayName: 'Download URL',
-                name: 'downloadUrl',
-                type: 'string',
-                default: '',
-                placeholder: 'https://example.com/file.pdf',
-                description: 'The direct URL of the file to download',
-                displayOptions: {
-                    show: {
-                        operation: ['downloadFile'],
-                        downloadSource: ['url'],
-                    },
-                },
-                required: true,
-            },
+			{
+				displayName: 'Download URL',
+				name: 'downloadUrl',
+				type: 'string',
+				default: '',
+				placeholder: 'https://example.com/file.pdf',
+				description: 'The direct URL of the file to download',
+				displayOptions: {
+					show: {
+						operation: ['downloadFile'],
+						downloadSource: ['url'],
+					},
+				},
+				required: true,
+			},
 
-            {
-                displayName: 'File Name',
-                name: 'downloadFileName',
-                type: 'string',
-                default: '',
-                placeholder: 'document.pdf',
-                description: 'Optional file name override for the downloaded file',
-                displayOptions: {
-                    show: {
-                        operation: ['downloadFile'],
-                        downloadSource: ['url'],
-                    },
-                },
-            },
+			{
+				displayName: 'File Name',
+				name: 'downloadFileName',
+				type: 'string',
+				default: '',
+				placeholder: 'document.pdf',
+				description: 'Optional file name override for the downloaded file',
+				displayOptions: {
+					show: {
+						operation: ['downloadFile'],
+						downloadSource: ['url'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Download Property Name',
-                name: 'downloadPropertyName',
-                type: 'string',
-                default: 'data',
-                required: true,
-                description: 'Name of the binary property in which to store the downloaded file',
-                displayOptions: {
-                    show: {
-                        operation: ['downloadFile'],
-                    },
-                },
-            },
+			{
+				displayName: 'Download Property Name',
+				name: 'downloadPropertyName',
+				type: 'string',
+				default: 'data',
+				required: true,
+				description: 'Name of the binary property in which to store the downloaded file',
+				displayOptions: {
+					show: {
+						operation: ['downloadFile'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Download Options',
-                name: 'downloadOptions',
-                type: 'collection',
-                placeholder: 'Add Option',
-                default: {},
-                displayOptions: {
-                    show: {
-                        operation: ['downloadFile'],
-                        downloadSource: ['element'],
-                    },
-                },
-                options: [
-                    {
-                        displayName: 'Click Timeout',
-                        name: 'clickTimeout',
-                        type: 'number',
-                        default: 15000,
-                        description: 'Maximum time to wait for the click action in milliseconds',
-                    },
-                    {
-                        displayName: 'Wait Timeout',
-                        name: 'waitTimeout',
-                        type: 'number',
-                        default: 15000,
-                        description: 'Maximum time to wait for a download, popup, or navigation in milliseconds',
-                    },
-                    {
-                        displayName: 'Prefer Popup Page',
-                        name: 'preferPopupPage',
-                        type: 'boolean',
-                        default: true,
-                        description: 'Whether to prioritize a newly opened page when both popup and navigation are possible',
-                    },
-                ],
-            },
+			{
+				displayName: 'Download Options',
+				name: 'downloadOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: {
+					show: {
+						operation: ['downloadFile'],
+						downloadSource: ['element'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Click Timeout',
+						name: 'clickTimeout',
+						type: 'number',
+						default: 15000,
+						description: 'Maximum time to wait for the click action in milliseconds',
+					},
+					{
+						displayName: 'Wait Timeout',
+						name: 'waitTimeout',
+						type: 'number',
+						default: 15000,
+						description:
+							'Maximum time to wait for a download, popup, or navigation in milliseconds',
+					},
+					{
+						displayName: 'Prefer Popup Page',
+						name: 'preferPopupPage',
+						type: 'boolean',
+						default: true,
+						description:
+							'Whether to prioritize a newly opened page when both popup and navigation are possible',
+					},
+				],
+			},
 
-            {
-                displayName: 'Browserless Endpoint',
-                name: 'browserlessEndpoint',
-                type: 'string',
-                default: 'http://browserless:3000',
-                placeholder: 'http://browserless:3000',
-                required: true,
-                description: 'Browserless CDP endpoint used when a new session is created',
-                displayOptions: {
-                    hide: {
-                        operation: ['closeSession'],
-                    },
-                },
-            },
+			{
+				displayName: 'Browserless Endpoint',
+				name: 'browserlessEndpoint',
+				type: 'string',
+				default: 'http://browserless:3000',
+				placeholder: 'http://browserless:3000',
+				required: true,
+				description: 'Browserless CDP endpoint used when a new session is created',
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+			},
 
-            {
-                displayName: 'Browser Connection Options',
-                name: 'browserOptions',
-                type: 'collection',
-                placeholder: 'Add Option',
-                default: {},
-                displayOptions: {
-                    hide: {
-                        operation: ['closeSession'],
-                    },
-                },
-                options: [
-                    {
-                        displayName: 'Timeout',
-                        name: 'timeout',
-                        type: 'number',
-                        default: 30000,
-                        description: 'Connection timeout in milliseconds',
-                    },
-                ],
-            },
+			{
+				displayName: 'Browser Connection Options',
+				name: 'browserOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Timeout',
+						name: 'timeout',
+						type: 'number',
+						default: 30000,
+						description: 'Connection timeout in milliseconds',
+					},
+				],
+			},
 
-            {
-                displayName: 'Screenshot Options',
-                name: 'screenshotOptions',
-                type: 'collection',
-                placeholder: 'Add Option',
-                default: {},
-                displayOptions: {
-                    show: {
-                        operation: ['takeScreenshot'],
-                    },
-                },
-                options: [
-                    {
-                        displayName: 'Full Page',
-                        name: 'fullPage',
-                        type: 'boolean',
-                        default: false,
-                        description: 'Whether to take a screenshot of the full scrollable page',
-                    },
-                    {
-                        displayName: 'Path',
-                        name: 'path',
-                        type: 'string',
-                        default: '',
-                        description: 'The file path to save the screenshot to',
-                    },
-                ],
-            },
-        ],
-    };
+			{
+				displayName: 'Screenshot Options',
+				name: 'screenshotOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: {
+					show: {
+						operation: ['takeScreenshot'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Full Page',
+						name: 'fullPage',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to take a screenshot of the full scrollable page',
+					},
+					{
+						displayName: 'Path',
+						name: 'path',
+						type: 'string',
+						default: '',
+						description: 'The file path to save the screenshot to',
+					},
+				],
+			},
+		],
+	};
 
-    async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-        const items = this.getInputData();
-        const returnData: INodeExecutionData[] = [];
-        const executionId = (this as ExecutionFunctionsWithExecutionId).getExecutionId?.();
-        const workflowId = this.getWorkflow().id;
+	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		const items = this.getInputData();
+		const returnData: INodeExecutionData[] = [];
+		const executionId = (this as ExecutionFunctionsWithExecutionId).getExecutionId?.();
+		const workflowId = this.getWorkflow().id;
 
-        for (let i = 0; i < items.length; i++) {
-            const operation = this.getNodeParameter('operation', i) as string;
-            const sessionId = this.getNodeParameter('sessionId', i, '') as string;
-            const sessionKey = getSessionKey(workflowId, executionId, i, sessionId);
+		for (let i = 0; i < items.length; i++) {
+			const operation = this.getNodeParameter('operation', i) as string;
+			const sessionId = this.getNodeParameter('sessionId', i, '') as string;
+			const sessionKey = getSessionKey(workflowId, executionId, i, sessionId);
 
-            try {
-                if (operation === 'closeSession') {
-                    const closed = await closeSession(sessionKey);
+			try {
+				if (operation === 'closeSession') {
+					const closed = await closeSession(sessionKey);
 
-                    returnData.push({
-                        json: {
-                            success: closed,
-                            sessionKey,
-                            message: closed ? 'Session closed' : 'No session found',
-                        },
-                        pairedItem: {
-                            item: i,
-                        },
-                    });
+					returnData.push({
+						json: {
+							success: closed,
+							sessionKey,
+							message: closed ? 'Session closed' : 'No session found',
+						},
+						pairedItem: {
+							item: i,
+						},
+					});
 
-                    continue;
-                }
+					continue;
+				}
 
-                const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
-                const browserlessEndpoint = this.getNodeParameter('browserlessEndpoint', i) as string;
-                const browserOptions = this.getNodeParameter('browserOptions', i) as IBrowserOptions;
-                const playwright = require('playwright-core');
+				const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
+				const browserlessEndpoint = this.getNodeParameter('browserlessEndpoint', i) as string;
+				const browserOptions = this.getNodeParameter('browserOptions', i) as IBrowserOptions;
+				const playwright = require('playwright-core');
 
-                if (!browserlessEndpoint) {
-                    throw new NodeOperationError(this.getNode(), 'Browserless endpoint is required', {
-                        itemIndex: i,
-                    });
-                }
+				if (!browserlessEndpoint) {
+					throw new NodeOperationError(this.getNode(), 'Browserless endpoint is required', {
+						itemIndex: i,
+					});
+				}
 
-                const session = await getOrCreateSession(
-                    playwright,
-                    sessionKey,
-                    browserlessEndpoint,
-                    browserOptions.timeout || 30000,
-                );
+				const session = await getOrCreateSession(
+					playwright,
+					sessionKey,
+					browserlessEndpoint,
+					browserOptions.timeout || 30000,
+				);
 
-                if (operation === 'navigate') {
-                    const url = this.getNodeParameter('url', i) as string;
-                    await session.page.goto(url);
-                }
+				if (operation === 'navigate') {
+					const url = this.getNodeParameter('url', i) as string;
+					await session.page.goto(url);
+				}
 
-                let result: INodeExecutionData | INodeExecutionData[];
+				let result: INodeExecutionData | INodeExecutionData[];
 
-                if (operation === 'runCustomScript') {
-                    result = await runCustomScript(this, i, session.browser, session.page, playwright);
-                    returnData.push(...result);
-                } else {
-                    result = await handleOperation(operation, session.page, this, i);
-                    returnData.push(result);
-                }
+				if (operation === 'runCustomScript') {
+					result = await runCustomScript(this, i, session.browser, session.page, playwright);
+					returnData.push(...result);
+				} else {
+					result = await handleOperation(operation, session.page, this, i);
+					returnData.push(result);
+				}
 
-                if (!leaveSessionOpen) {
-                    await closeSession(sessionKey);
-                }
-            } catch (error: any) {
-                if (this.continueOnFail()) {
-                    returnData.push({
-                        json: {
-                            error: error.message,
-                            sessionKey,
-                        },
-                        pairedItem: {
-                            item: i,
-                        },
-                    });
-                    continue;
-                }
+				if (!leaveSessionOpen) {
+					await closeSession(sessionKey);
+				}
+			} catch (error: any) {
+				if (this.continueOnFail()) {
+					returnData.push({
+						json: {
+							error: error.message,
+							sessionKey,
+						},
+						pairedItem: {
+							item: i,
+						},
+					});
+					continue;
+				}
 
-                throw error;
-            }
-        }
+				throw error;
+			}
+		}
 
-        return [returnData];
-    }
+		return [returnData];
+	}
 }

@@ -1,16 +1,16 @@
 export interface IBrowserOptions {
-    timeout?: number;
+	timeout?: number;
 }
 
 export interface IScreenshotOptions {
-    fullPage?: boolean;
-    path?: string;
+	fullPage?: boolean;
+	path?: string;
 }
 
 export interface IDownloadOptions {
-    clickTimeout?: number;
-    waitTimeout?: number;
-    preferPopupPage?: boolean;
+	clickTimeout?: number;
+	waitTimeout?: number;
+	preferPopupPage?: boolean;
 }
 
 export type DownloadSource = 'element' | 'url';

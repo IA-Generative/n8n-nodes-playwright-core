@@ -1,16 +1,13 @@
 {
-    "node": "n8n-nodes-base.playwright",
-    "nodeVersion": "1.0",
-    "codexVersion": "1.0",
-    "categories": [
-        "Development",
-        "Automation"
-    ],
-    "resources": {
-        "primaryDocumentation": [
-            {
-                "url": "https://playwright.dev/docs/intro"
-            }
-        ]
-    }
+	"node": "n8n-nodes-base.playwright",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Development", "Automation"],
+	"resources": {
+		"primaryDocumentation": [
+			{
+				"url": "https://playwright.dev/docs/intro"
+			}
+		]
+	}
 }

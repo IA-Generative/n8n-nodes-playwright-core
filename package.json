@@ -1,7 +1,7 @@
 {
-	"name": "n8n-nodes-playwright-core",
+	"name": "@ia-generative/n8n-nodes-playwright-core",
 	"version": "0.1.0",
-	"description": "n8n community node for browser automation with Playwright Core over Browserless",
+	"description": "n8n community node for browser automation with Playwright Core browser agnostic",
 	"keywords": [
 		"n8n-community-node-package",
 		"n8n",
@@ -21,10 +21,10 @@
 		"url": "https://github.com/IA-Generative/n8n-nodes-playwright-core"
 	},
 	"engines": {
-		"node": ">=18.10",
+		"node": ">=22.22.1",
 		"pnpm": ">=9.1"
 	},
-	"packageManager": "pnpm@9.1.4",
+	"packageManager": "pnpm@10.32.1",
 	"main": "dist/nodes/index.js",
 	"scripts": {
 		"preinstall": "npx only-allow pnpm",
@@ -33,6 +33,9 @@
 		"format": "prettier nodes package.json --write",
 		"lint": "eslint nodes package.json",
 		"lintfix": "eslint nodes package.json --fix"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
 	},
 	"files": [
 		"dist"

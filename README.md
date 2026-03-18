@@ -1,4 +1,4 @@
-# n8n-nodes-playwright-core
+# @ia-generative/n8n-nodes-playwright-core
 
 This is an n8n community node. It lets you automate browser actions in your n8n workflows using Playwright Core over a Browserless-compatible CDP endpoint.
 
@@ -17,11 +17,59 @@ This is an n8n community node. It lets you automate browser actions in your n8n 
 
 ## Installation
 
-Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
+Ce package est publié sur le **GitHub Package Registry**. Une authentification GitHub est requise même pour les packages publics.
+
+### 1. Configurer l'authentification GitHub Package Registry
+
+Créez un [Personal Access Token (PAT)](https://github.com/settings/tokens) avec le scope `read:packages`, puis configurez npm :
 
 ```bash
-pnpm install n8n-nodes-playwright-core
+npm config set @ia-generative:registry https://npm.pkg.github.com
+npm config set //npm.pkg.github.com/:_authToken YOUR_GITHUB_TOKEN
 ```
+
+Ou via un fichier `.npmrc` à la racine du projet :
+
+```
+@ia-generative:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+### 2. Installer le package
+
+```bash
+npm install @ia-generative/n8n-nodes-playwright-core
+# ou
+pnpm install @ia-generative/n8n-nodes-playwright-core
+```
+
+### 3. Utilisation dans une image Docker n8n
+
+Pour intégrer ce node dans une image n8n personnalisée :
+
+```dockerfile
+FROM n8nio/n8n:latest
+
+USER root
+
+ARG GITHUB_TOKEN
+
+RUN npm config set @ia-generative:registry https://npm.pkg.github.com \
+    && npm config set //npm.pkg.github.com/:_authToken ${GITHUB_TOKEN} \
+    && cd /usr/local/lib \
+    && npm install @ia-generative/n8n-nodes-playwright-core \
+    && npm config delete //npm.pkg.github.com/:_authToken
+
+USER node
+```
+
+Puis construire l'image en passant le token :
+
+```bash
+docker build --build-arg GITHUB_TOKEN=YOUR_GITHUB_TOKEN -t my-n8n .
+```
+
+> ⚠️ Le token est supprimé de la configuration npm après l'installation pour ne pas le laisser dans l'image finale.
 
 ## Requirements
 

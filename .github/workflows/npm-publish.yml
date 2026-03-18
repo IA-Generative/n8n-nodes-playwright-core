@@ -1,124 +1,96 @@
-name: Publish to npm
-permissions:
-  contents: write 
+name: Publier sur GitHub Package Registry
+
 on:
   push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
-    inputs:
-      version_bump:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
 
-      - name: Setup Node.js
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de Node.js avec GitHub Package Registry
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
+          node-version-file: 'package.json'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@ia-generative'
 
-      - name: Install pnpm
-        run: npm install -g pnpm@9.1.4
+      - name: Activation de corepack et pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.1.4 --activate
 
-      - name: Install dependencies
-        run: pnpm install --ignore-scripts
+      - name: Installation des dépendances
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Build project
+      - name: Build du projet
         run: pnpm build
 
-      - name: Run linter
-        run: pnpm lint || echo "Linting skipped"
-        continue-on-error: true
-
-      - name: Check if version already published
-        id: check-version
+      - name: Vérification cohérence version tag / package.json
         run: |
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          
-          # Check if version exists on npm
-          if npm view "$PACKAGE_NAME@$CURRENT_VERSION" version 2>/dev/null; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Version $CURRENT_VERSION already exists on npm"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Version $CURRENT_VERSION is new"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Tag Git    : $TAG_VERSION"
+          echo "package.json : $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "❌ La version du tag ($TAG_VERSION) ne correspond pas à celle du package.json ($PKG_VERSION)."
+            echo "Mettez à jour la version dans package.json avant de créer le tag."
+            exit 1
           fi
-          
-          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Versions cohérentes : $PKG_VERSION"
 
-      - name: Bump version
-        if: steps.check-version.outputs.exists == 'true'
-        run: |
-          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          npm version $BUMP_TYPE -m "chore: bump version to %s [skip ci]"
-          
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-      - name: Push version bump
-        if: steps.check-version.outputs.exists == 'true'
-        run: |
-          git push origin HEAD:${{ github.ref_name }}
-          git push --tags
-
-      - name: Publish to npm (using granular token)
-        run: |
-          # Configure npm to use the granular access token
-          npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_GRANULAR_TOKEN }}
-          
-          # Publish with public access
-          npm publish --access public
+      - name: Publication sur GitHub Package Registry
+        run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_GRANULAR_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get final version
-        id: final-version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Création de la GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.final-version.outputs.version }}
-          release_name: Release v${{ steps.final-version.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
           body: |
-            ## Changes in v${{ steps.final-version.outputs.version }}
-            
-            Published to npm: https://www.npmjs.com/package/n8n-nodes-playwright/v/${{ steps.final-version.outputs.version }}
-            
-            ### Installation
-            ```bash
-            pnpm install n8n-nodes-playwright@${{ steps.final-version.outputs.version }}
-            ```
-          draft: false
-          prerelease: false
+            ## 📦 Installation
 
-      - name: Notify success
-        if: success()
-        run: |
-          echo "✅ Successfully published n8n-nodes-playwright@${{ steps.final-version.outputs.version }} to npm!"
-          echo "📦 Package: https://www.npmjs.com/package/n8n-nodes-playwright"
+            ### Prérequis : authentification GitHub Package Registry
+
+            ```bash
+            npm config set @ia-generative:registry https://npm.pkg.github.com
+            npm config set //npm.pkg.github.com/:_authToken YOUR_GITHUB_TOKEN
+            ```
+
+            > Le token GitHub doit avoir le scope `read:packages`.
+
+            ### Installation du node n8n
+
+            ```bash
+            npm install @ia-generative/n8n-nodes-playwright-core@${{ github.ref_name }}
+            ```
+
+            ### Utilisation dans un Dockerfile n8n
+
+            ```dockerfile
+            FROM n8nio/n8n:latest
+
+            USER root
+
+            ARG GITHUB_TOKEN
+
+            RUN npm config set @ia-generative:registry https://npm.pkg.github.com \
+                && npm config set //npm.pkg.github.com/:_authToken ${GITHUB_TOKEN} \
+                && cd /usr/local/lib \
+                && npm install @ia-generative/n8n-nodes-playwright-core@${{ github.ref_name }} \
+                && npm config delete //npm.pkg.github.com/:_authToken
+
+            USER node
+            ```

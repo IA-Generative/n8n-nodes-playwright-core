@@ -7,12 +7,8 @@ import {
 } from 'n8n-workflow';
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
-import { BrowserConnectionMode, IBrowserOptions } from './types';
-import { closeSession, getOrCreateSession, getSessionKey } from './sessionStore';
-
-type ExecutionFunctionsWithExecutionId = IExecuteFunctions & {
-	getExecutionId?: () => string;
-};
+import { BrowserConnectionMode, BrowserType, IBrowserOptions } from './types';
+import { closeSession, getOrCreateSession, resolveSessionKey } from './sessionStore';
 
 export class Playwright implements INodeType {
 	description: INodeTypeDescription = {
@@ -30,6 +26,25 @@ export class Playwright implements INodeType {
 		outputs: ['main'],
 
 		properties: [
+			{
+				displayName: 'Browser',
+				name: 'browser',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Firefox',
+						value: 'firefox',
+						description: 'Mozilla Firefox',
+					},
+					{
+						name: 'Chrome',
+						value: 'chromium',
+						description: 'Google Chrome version opensource',
+					},
+				],
+				default: 'firefox',
+			},
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -104,15 +119,15 @@ export class Playwright implements INodeType {
 			},
 
 			{
-				displayName: 'Session ID',
-				name: 'sessionId',
+				displayName: 'Session ID à fermer',
+				name: 'closeSessionId',
 				type: 'string',
 				default: '',
-				placeholder: 'optional-shared-session',
+				placeholder: 'Laisser vide pour fermer la session propagée',
 				description:
-					'Optional custom session ID. Leave empty to auto-share one session per workflow execution and item index.',
+					'ID of the session to close. Leave empty to close the session propagated from the previous node.',
 				displayOptions: {
-					hide: {
+					show: {
 						operation: ['closeSession'],
 					},
 				},
@@ -410,17 +425,17 @@ return [{
 				type: 'options',
 				options: [
 					{
-						name: 'CDP',
-						value: 'cdp',
-						description: 'Connect using Chromium CDP',
-					},
-					{
 						name: 'Playwright WS',
 						value: 'ws',
 						description: 'Connect using a Playwright WebSocket endpoint',
 					},
+					{
+						name: 'CDP',
+						value: 'cdp',
+						description: 'Connect using Chromium CDP (Chromium only)',
+					},
 				],
-				default: 'cdp',
+				default: 'ws',
 				description: 'Choose how to connect to the remote browser',
 				displayOptions: {
 					hide: {
@@ -433,8 +448,8 @@ return [{
 				displayName: 'Browser Endpoint',
 				name: 'browserEndpoint',
 				type: 'string',
-				default: 'http://browserless:3000',
-				placeholder: 'http://browserless:3000 or ws://browserless:3000',
+				default: 'ws://playwright:3000',
+				placeholder: 'ws://playwright:3000 or http://playwright:3000',
 				required: true,
 				description: 'Remote browser endpoint used when a new session is created',
 				displayOptions: {
@@ -462,6 +477,15 @@ return [{
 						type: 'number',
 						default: 30000,
 						description: 'Connection timeout in milliseconds',
+					},
+					{
+						displayName: 'Session ID',
+						name: 'sessionId',
+						type: 'string',
+						default: '',
+						placeholder: 'ma-session-custom',
+						description:
+							'Custom session identifier. Leave empty to reuse the session propagated from the previous node, or to generate a new UUID automatically.',
 					},
 				],
 			},
@@ -500,22 +524,28 @@ return [{
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
-		const executionId = (this as ExecutionFunctionsWithExecutionId).getExecutionId?.();
-		const workflowId = this.getWorkflow().id;
 
 		for (let i = 0; i < items.length; i++) {
 			const operation = this.getNodeParameter('operation', i) as string;
-			const sessionId = this.getNodeParameter('sessionId', i, '') as string;
-			const sessionKey = getSessionKey(workflowId, executionId, i, sessionId);
+
+			const playwrightMeta = items[i].json?.playwright as Record<string, unknown> | undefined;
+			const propagatedSessionKey = playwrightMeta?.sessionKey as string | undefined;
+
+			const browserOptions = this.getNodeParameter('browserOptions', i, {}) as IBrowserOptions;
+			const explicitSessionId = browserOptions.sessionId || undefined;
+
+			const sessionKey = resolveSessionKey(explicitSessionId, propagatedSessionKey);
 
 			try {
 				if (operation === 'closeSession') {
-					const closed = await closeSession(sessionKey);
+					const closeSessionId = this.getNodeParameter('closeSessionId', i, '') as string;
+					const keyToClose = resolveSessionKey(closeSessionId, propagatedSessionKey);
+					const closed = await closeSession(keyToClose);
 
 					returnData.push({
 						json: {
 							success: closed,
-							sessionKey,
+							sessionKey: keyToClose,
 							message: closed ? 'Session closed' : 'No session found',
 						},
 						pairedItem: {
@@ -527,13 +557,15 @@ return [{
 				}
 
 				const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
-				const connectionMode = this.getNodeParameter(
+				const browserType = this.getNodeParameter('browser', i, 'chromium') as BrowserType;
+				const rawConnectionMode = this.getNodeParameter(
 					'connectionMode',
 					i,
-					'cdp',
+					'ws',
 				) as BrowserConnectionMode;
+				const connectionMode: BrowserConnectionMode =
+					browserType === 'firefox' ? 'ws' : rawConnectionMode;
 				const browserEndpoint = this.getNodeParameter('browserEndpoint', i) as string;
-				const browserOptions = this.getNodeParameter('browserOptions', i) as IBrowserOptions;
 				const playwright = require('playwright-core');
 
 				if (!browserEndpoint) {
@@ -548,6 +580,7 @@ return [{
 					connectionMode,
 					browserEndpoint,
 					browserOptions.timeout || 30000,
+					browserType,
 				);
 
 				if (operation === 'navigate') {
@@ -559,10 +592,20 @@ return [{
 
 				if (operation === 'runCustomScript') {
 					result = await runCustomScript(this, i, session.browser, session.page, playwright);
+					for (const item of result as INodeExecutionData[]) {
+						item.json.playwright = {
+							...((item.json.playwright as object) ?? {}),
+							sessionKey,
+						};
+					}
 					returnData.push(...result);
 				} else {
 					result = await handleOperation(operation, session.page, this, i);
-					returnData.push(result);
+					(result as INodeExecutionData).json.playwright = {
+						...(((result as INodeExecutionData).json.playwright as object) ?? {}),
+						sessionKey,
+					};
+					returnData.push(result as INodeExecutionData);
 				}
 
 				if (!leaveSessionOpen) {
@@ -573,7 +616,7 @@ return [{
 					returnData.push({
 						json: {
 							error: error.message,
-							sessionKey,
+							playwright: { sessionKey },
 						},
 						pairedItem: {
 							item: i,

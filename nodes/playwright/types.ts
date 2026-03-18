@@ -1,5 +1,6 @@
 export interface IBrowserOptions {
 	timeout?: number;
+	sessionId?: string;
 }
 
 export interface IScreenshotOptions {
@@ -15,3 +16,4 @@ export interface IDownloadOptions {
 
 export type DownloadSource = 'element' | 'url';
 export type BrowserConnectionMode = 'cdp' | 'ws';
+export type BrowserType = 'firefox' | 'chromium';

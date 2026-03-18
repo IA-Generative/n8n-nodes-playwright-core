@@ -1,5 +1,6 @@
+import { randomUUID } from 'crypto';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import type { BrowserConnectionMode } from './types';
+import type { BrowserConnectionMode, BrowserType } from './types';
 
 type PlaywrightModule = typeof import('playwright-core');
 
@@ -11,19 +12,17 @@ interface IStoredSession {
 
 const sessions = new Map<string, IStoredSession>();
 
-export function getSessionKey(
-	workflowId: string | undefined,
-	executionId: string | undefined,
-	itemIndex: number,
-	sessionId?: string,
+export function resolveSessionKey(
+	explicitSessionId: string | undefined,
+	propagatedSessionKey: string | undefined,
 ): string {
-	const trimmedSessionId = sessionId?.trim();
+	const trimmedExplicit = explicitSessionId?.trim();
+	if (trimmedExplicit) return trimmedExplicit;
 
-	if (trimmedSessionId) {
-		return trimmedSessionId;
-	}
+	const trimmedPropagated = propagatedSessionKey?.trim();
+	if (trimmedPropagated) return trimmedPropagated;
 
-	return `${workflowId ?? 'unknown-workflow'}:${executionId ?? 'unknown-execution'}:${itemIndex}`;
+	return randomUUID();
 }
 
 export async function getOrCreateSession(
@@ -32,6 +31,7 @@ export async function getOrCreateSession(
 	connectionMode: BrowserConnectionMode,
 	browserEndpoint: string,
 	timeout: number,
+	browserType: BrowserType = 'chromium',
 ): Promise<IStoredSession> {
 	const existingSession = sessions.get(sessionKey);
 
@@ -48,7 +48,13 @@ export async function getOrCreateSession(
 		sessions.delete(sessionKey);
 	}
 
-	const browser = await connectToBrowser(playwright, connectionMode, browserEndpoint, timeout);
+	const browser = await connectToBrowser(
+		playwright,
+		browserType,
+		connectionMode,
+		browserEndpoint,
+		timeout,
+	);
 
 	browser.on('disconnected', () => {
 		sessions.delete(sessionKey);
@@ -88,19 +94,23 @@ export async function closeSession(sessionKey: string): Promise<boolean> {
 
 async function connectToBrowser(
 	playwright: PlaywrightModule,
+	browserType: BrowserType,
 	connectionMode: BrowserConnectionMode,
 	browserEndpoint: string,
 	timeout: number,
 ): Promise<Browser> {
-	if (connectionMode === 'ws') {
-		return playwright.chromium.connect(browserEndpoint, {
-			timeout,
-		});
+	const playwrightBrowser = playwright[browserType];
+
+	if (connectionMode === 'cdp') {
+		if (browserType === 'firefox') {
+			throw new Error(
+				"Firefox ne supporte pas la connexion via CDP. Utilisez le mode 'Playwright WS'.",
+			);
+		}
+		return playwrightBrowser.connectOverCDP(browserEndpoint, { timeout });
 	}
 
-	return playwright.chromium.connectOverCDP(browserEndpoint, {
-		timeout,
-	});
+	return playwrightBrowser.connect(browserEndpoint, { timeout });
 }
 
 function isSessionUsable(session: IStoredSession): boolean {

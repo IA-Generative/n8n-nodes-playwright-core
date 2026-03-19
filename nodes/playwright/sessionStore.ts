@@ -1,4 +1,5 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
+import type { BrowserConnectionMode } from './types';
 
 type PlaywrightModule = typeof import('playwright-core');
 
@@ -28,7 +29,8 @@ export function getSessionKey(
 export async function getOrCreateSession(
 	playwright: PlaywrightModule,
 	sessionKey: string,
-	browserlessEndpoint: string,
+	connectionMode: BrowserConnectionMode,
+	browserEndpoint: string,
 	timeout: number,
 ): Promise<IStoredSession> {
 	const existingSession = sessions.get(sessionKey);
@@ -46,9 +48,7 @@ export async function getOrCreateSession(
 		sessions.delete(sessionKey);
 	}
 
-	const browser = await playwright.chromium.connectOverCDP(browserlessEndpoint, {
-		timeout,
-	});
+	const browser = await connectToBrowser(playwright, connectionMode, browserEndpoint, timeout);
 
 	browser.on('disconnected', () => {
 		sessions.delete(sessionKey);
@@ -84,6 +84,23 @@ export async function closeSession(sessionKey: string): Promise<boolean> {
 	}
 
 	return true;
+}
+
+async function connectToBrowser(
+	playwright: PlaywrightModule,
+	connectionMode: BrowserConnectionMode,
+	browserEndpoint: string,
+	timeout: number,
+): Promise<Browser> {
+	if (connectionMode === 'ws') {
+		return playwright.chromium.connect(browserEndpoint, {
+			timeout,
+		});
+	}
+
+	return playwright.chromium.connectOverCDP(browserEndpoint, {
+		timeout,
+	});
 }
 
 function isSessionUsable(session: IStoredSession): boolean {

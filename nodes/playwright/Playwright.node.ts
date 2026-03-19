@@ -7,7 +7,7 @@ import {
 } from 'n8n-workflow';
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
-import { IBrowserOptions } from './types';
+import { BrowserConnectionMode, IBrowserOptions } from './types';
 import { closeSession, getOrCreateSession, getSessionKey } from './sessionStore';
 
 type ExecutionFunctionsWithExecutionId = IExecuteFunctions & {
@@ -405,13 +405,38 @@ return [{
 			},
 
 			{
-				displayName: 'Browserless Endpoint',
-				name: 'browserlessEndpoint',
+				displayName: 'Connection Mode',
+				name: 'connectionMode',
+				type: 'options',
+				options: [
+					{
+						name: 'CDP',
+						value: 'cdp',
+						description: 'Connect using Chromium CDP',
+					},
+					{
+						name: 'Playwright WS',
+						value: 'ws',
+						description: 'Connect using a Playwright WebSocket endpoint',
+					},
+				],
+				default: 'cdp',
+				description: 'Choose how to connect to the remote browser',
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+			},
+
+			{
+				displayName: 'Browser Endpoint',
+				name: 'browserEndpoint',
 				type: 'string',
 				default: 'http://browserless:3000',
-				placeholder: 'http://browserless:3000',
+				placeholder: 'http://browserless:3000 or ws://browserless:3000',
 				required: true,
-				description: 'Browserless CDP endpoint used when a new session is created',
+				description: 'Remote browser endpoint used when a new session is created',
 				displayOptions: {
 					hide: {
 						operation: ['closeSession'],
@@ -502,12 +527,17 @@ return [{
 				}
 
 				const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
-				const browserlessEndpoint = this.getNodeParameter('browserlessEndpoint', i) as string;
+				const connectionMode = this.getNodeParameter(
+					'connectionMode',
+					i,
+					'cdp',
+				) as BrowserConnectionMode;
+				const browserEndpoint = this.getNodeParameter('browserEndpoint', i) as string;
 				const browserOptions = this.getNodeParameter('browserOptions', i) as IBrowserOptions;
 				const playwright = require('playwright-core');
 
-				if (!browserlessEndpoint) {
-					throw new NodeOperationError(this.getNode(), 'Browserless endpoint is required', {
+				if (!browserEndpoint) {
+					throw new NodeOperationError(this.getNode(), 'Browser endpoint is required', {
 						itemIndex: i,
 					});
 				}
@@ -515,7 +545,8 @@ return [{
 				const session = await getOrCreateSession(
 					playwright,
 					sessionKey,
-					browserlessEndpoint,
+					connectionMode,
+					browserEndpoint,
 					browserOptions.timeout || 30000,
 				);
 

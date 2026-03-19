@@ -24,8 +24,8 @@ services:
     restart: unless-stopped
 
   browserless:
-    image: ghcr.io/browserless/chromium:latest
-    container_name: browserless-playwright-core
+    image: monplaywright
+    container_name: monplaywright-playwright-core
     ports:
       - "3000:3000"
     environment:

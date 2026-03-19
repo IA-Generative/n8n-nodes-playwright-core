@@ -14,3 +14,4 @@ export interface IDownloadOptions {
 }
 
 export type DownloadSource = 'element' | 'url';
+export type BrowserConnectionMode = 'cdp' | 'ws';

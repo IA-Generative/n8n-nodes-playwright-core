@@ -109,6 +109,72 @@ async function prepareBinaryFromBuffer(
 	return executeFunctions.helpers.prepareBinaryData(buffer, fileName, mimeType);
 }
 
+function throwIfEmptyFile(
+	executeFunctions: IExecuteFunctions,
+	itemIndex: number,
+	fileName: string | undefined,
+	size: number,
+) {
+	if (size === 0) {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			`Empty file received: ${fileName || 'unknown file'} (0 B)`,
+			{ itemIndex },
+		);
+	}
+}
+
+async function getCookieHeader(page: Page, url: string): Promise<string | undefined> {
+	try {
+		const cookies = await page.context().cookies([url]);
+
+		if (!cookies.length) {
+			return undefined;
+		}
+
+		return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+	} catch {
+		return undefined;
+	}
+}
+
+async function fetchFileFromNode(
+	executeFunctions: IExecuteFunctions,
+	url: string,
+	fallbackFileName?: string,
+	cookieHeader?: string,
+) {
+	const response = await fetch(url, {
+		method: 'GET',
+		redirect: 'follow',
+		headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
+	});
+
+	if (!response.ok) {
+		throw new Error(`HTTP ${response.status}`);
+	}
+
+	const contentDisposition = response.headers.get('content-disposition') || '';
+	const contentType =
+		response.headers.get('content-type')?.split(';')[0]?.trim() || 'application/octet-stream';
+	const arrayBuffer = await response.arrayBuffer();
+	const buffer = Buffer.from(arrayBuffer);
+
+	const fileName =
+		filenameFromDisposition(contentDisposition) ||
+		fallbackFileName ||
+		filenameFromUrl(response.url || url);
+
+	return {
+		binaryData: await prepareBinaryFromBuffer(executeFunctions, buffer, fileName, contentType),
+		fileName,
+		mimeType: contentType,
+		size: buffer.length,
+		url: response.url || url,
+		status: response.status,
+	};
+}
+
 async function prepareBinaryFromDownload(executeFunctions: IExecuteFunctions, download: Download) {
 	const suggestedFilename = download.suggestedFilename() || 'download';
 	const failure = await download.failure();
@@ -273,12 +339,20 @@ async function handleDownloadFromUrl(
 		).trim() || undefined;
 
 	const downloadUrl = resolveUrl(rawDownloadUrl, page.url());
+	const errors: string[] = [];
 
 	const fetchedInPage = await safely(
 		fetchFileThroughPage(executeFunctions, page, downloadUrl, fallbackFileName),
 	);
 
-	if (fetchedInPage && fetchedInPage.size > 0) {
+	if (fetchedInPage) {
+		throwIfEmptyFile(
+			executeFunctions,
+			itemIndex,
+			fetchedInPage.fileName,
+			fetchedInPage.size,
+		);
+
 		return {
 			binary: {
 				[propertyName]: fetchedInPage.binaryData,
@@ -297,13 +371,22 @@ async function handleDownloadFromUrl(
 				item: itemIndex,
 			},
 		};
+	} else {
+		errors.push('browser-fetch-url failed');
 	}
 
 	const fetchedByRequest = await safely(
 		fetchFileFromUrl(executeFunctions, page, downloadUrl, fallbackFileName),
 	);
 
-	if (fetchedByRequest && fetchedByRequest.size > 0) {
+	if (fetchedByRequest) {
+		throwIfEmptyFile(
+			executeFunctions,
+			itemIndex,
+			fetchedByRequest.fileName,
+			fetchedByRequest.size,
+		);
+
 		return {
 			binary: {
 				[propertyName]: fetchedByRequest.binaryData,
@@ -322,11 +405,48 @@ async function handleDownloadFromUrl(
 				item: itemIndex,
 			},
 		};
+	} else {
+		errors.push('playwright-request-fetch failed');
+	}
+
+	const cookieHeader = await getCookieHeader(page, downloadUrl);
+	const fetchedByNode = await safely(
+		fetchFileFromNode(executeFunctions, downloadUrl, fallbackFileName, cookieHeader),
+	);
+
+	if (fetchedByNode) {
+		throwIfEmptyFile(
+			executeFunctions,
+			itemIndex,
+			fetchedByNode.fileName,
+			fetchedByNode.size,
+		);
+
+		return {
+			binary: {
+				[propertyName]: fetchedByNode.binaryData,
+			},
+			json: {
+				success: true,
+				method: 'node-fetch-url',
+				pageUrl: page.url(),
+				url: fetchedByNode.url,
+				status: fetchedByNode.status,
+				fileName: fetchedByNode.fileName,
+				mimeType: fetchedByNode.mimeType,
+				size: fetchedByNode.size,
+			},
+			pairedItem: {
+				item: itemIndex,
+			},
+		};
+	} else {
+		errors.push('node-fetch-url failed');
 	}
 
 	throw new NodeOperationError(
 		executeFunctions.getNode(),
-		`Failed to download file from URL: ${downloadUrl}`,
+		`Failed to download file from URL: ${downloadUrl}. Tried: ${errors.join(', ')}`,
 		{ itemIndex },
 	);
 }
@@ -370,33 +490,64 @@ async function handleDownloadFromElement(
 		const suggestedFileName = download.suggestedFilename() || undefined;
 
 		if (absoluteHref && !absoluteHref.startsWith('javascript:')) {
-			const fetched = await fetchFileFromUrl(
-				executeFunctions,
-				page,
-				absoluteHref,
-				suggestedFileName,
+			const fetched = await safely(
+				fetchFileFromUrl(executeFunctions, page, absoluteHref, suggestedFileName),
 			);
 
-			return {
-				binary: {
-					[propertyName]: fetched.binaryData,
-				},
-				json: {
-					success: true,
-					method: 'download-event-fetch-href',
-					selectorType,
-					selector,
-					url: page.url(),
-					downloadUrl: fetched.url,
-					fileName: fetched.fileName,
-					mimeType: fetched.mimeType,
-					size: fetched.size,
-					status: fetched.status,
-				},
-				pairedItem: {
-					item: itemIndex,
-				},
-			};
+			if (fetched && fetched.size > 0) {
+				return {
+					binary: {
+						[propertyName]: fetched.binaryData,
+					},
+					json: {
+						success: true,
+						method: 'download-event-fetch-href',
+						selectorType,
+						selector,
+						url: page.url(),
+						downloadUrl: fetched.url,
+						fileName: fetched.fileName,
+						mimeType: fetched.mimeType,
+						size: fetched.size,
+						status: fetched.status,
+					},
+					pairedItem: {
+						item: itemIndex,
+					},
+				};
+			}
+
+			const fetchedByNode = await safely(
+				fetchFileFromNode(
+					executeFunctions,
+					absoluteHref,
+					suggestedFileName,
+					await getCookieHeader(page, absoluteHref),
+				),
+			);
+
+			if (fetchedByNode && fetchedByNode.size > 0) {
+				return {
+					binary: {
+						[propertyName]: fetchedByNode.binaryData,
+					},
+					json: {
+						success: true,
+						method: 'download-event-node-fetch-href',
+						selectorType,
+						selector,
+						url: page.url(),
+						downloadUrl: fetchedByNode.url,
+						fileName: fetchedByNode.fileName,
+						mimeType: fetchedByNode.mimeType,
+						size: fetchedByNode.size,
+						status: fetchedByNode.status,
+					},
+					pairedItem: {
+						item: itemIndex,
+					},
+				};
+			}
 		}
 
 		const prepared = await prepareBinaryFromDownload(executeFunctions, download);
@@ -481,6 +632,40 @@ async function handleDownloadFromElement(
 					fileName: fetchedByRequest.fileName,
 					mimeType: fetchedByRequest.mimeType,
 					size: fetchedByRequest.size,
+					navigated: Boolean(navigation),
+					popupOpened: Boolean(popupPage),
+				},
+				pairedItem: {
+					item: itemIndex,
+				},
+			};
+		}
+
+		const fetchedByNode = await safely(
+			fetchFileFromNode(
+				executeFunctions,
+				absoluteHref,
+				undefined,
+				await getCookieHeader(page, absoluteHref),
+			),
+		);
+
+		if (fetchedByNode && fetchedByNode.size > 0) {
+			return {
+				binary: {
+					[propertyName]: fetchedByNode.binaryData,
+				},
+				json: {
+					success: true,
+					method: 'node-fetch-href',
+					selectorType,
+					selector,
+					pageUrl: page.url(),
+					url: fetchedByNode.url,
+					status: fetchedByNode.status,
+					fileName: fetchedByNode.fileName,
+					mimeType: fetchedByNode.mimeType,
+					size: fetchedByNode.size,
 					navigated: Boolean(navigation),
 					popupOpened: Boolean(popupPage),
 				},

@@ -14,19 +14,15 @@ RUN mkdir -p /out/n8n-nodes-playwright \
     && cp -R dist /out/n8n-nodes-playwright/dist \
     && cp -R node_modules /out/n8n-nodes-playwright/node_modules
 
-# FROM mcr.microsoft.com/playwright:v1.49.0-jammy AS browsers
-
 FROM n8nio/n8n:2.8.3
 
 USER root
 
-RUN mkdir -p /opt/custom-nodes/n8n-nodes-playwright /opt/playwright-browsers
+RUN mkdir -p /opt/custom-nodes/n8n-nodes-playwright
 
 COPY --from=builder /out/n8n-nodes-playwright/ /opt/custom-nodes/n8n-nodes-playwright/
-# COPY --from=browsers /ms-playwright/ /opt/playwright-browsers/
 
 RUN test -d /opt/custom-nodes/n8n-nodes-playwright/node_modules
-# RUN test -d /opt/playwright-browsers
 
 USER node
 

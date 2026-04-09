@@ -1,9 +1,7 @@
 services:
   n8n:
-    build:
-      context: .
-      dockerfile: dockerfile
-    container_name: n8n-playwright-core
+    build: .
+    image: n8n-playwright-core
     ports:
       - "5678:5678"
     environment:
@@ -16,23 +14,21 @@ services:
       - N8N_COMMUNITY_PACKAGES_ENABLED=true
       - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
       - N8N_CUSTOM_EXTENSIONS=/opt/custom-nodes
+    develop:
+      watch:
+        - action: rebuild
+          path: ./nodes
     volumes:
-      - ./n8n_data:/home/node/.n8n
-      - ./n8n_cache:/home/node/.cache
-    depends_on:
-      - browserless
-    restart: unless-stopped
+      - n8n_data:/home/node/.n8n
+      - n8n_cache:/home/node/.cache
 
-  browserless:
-    image: monplaywright
-    container_name: monplaywright-playwright-core
+  playwright:
+    image: ghcr.io/ia-generative/playwright:v1.58.2-jammy-browsers
+    build:
+      dockerfile: Dockerfile-playwright
     ports:
       - "3000:3000"
-    environment:
-      - HOST=browserless
-      - PORT=3000
-      - TOKEN=
-      - CONCURRENT=4
-      - QUEUED=10
-      - TIMEOUT=300000
-    restart: unless-stopped
+
+volumes:
+  n8n_data:
+  n8n_cache:

@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -19,14 +20,13 @@ jobs:
       - name: Configuration de Node.js avec npm
         uses: actions/setup-node@v6
         with:
-          node-version-file: 'package.json'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-          scope: '@ia-generative'
 
       - name: Activation de corepack et pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@9.1.4 --activate
+          corepack prepare pnpm@10.32.1 --activate
 
       - name: Installation des dépendances
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -48,9 +48,7 @@ jobs:
           echo "✅ Versions cohérentes : $PKG_VERSION"
 
       - name: Publication sur npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
 
       - name: Création de la GitHub Release
         uses: softprops/action-gh-release@v2
@@ -64,7 +62,7 @@ jobs:
             ### Installation du node n8n
 
             ```bash
-            npm install @ia-generative/n8n-nodes-playwright-core@${{ github.ref_name }}
+            npm install n8n-nodes-playwright-core@${{ github.ref_name }}
             ```
 
             ### Utilisation dans un Dockerfile n8n
@@ -74,8 +72,8 @@ jobs:
 
             USER root
 
-            RUN cd /usr/local/lib \
-                && npm install @ia-generative/n8n-nodes-playwright-core@${{ github.ref_name }}
+            RUN cd /home/node/.n8n/nodes \
+                && npm install n8n-nodes-playwright-core@${{ github.ref_name }}
 
             USER node
             ```

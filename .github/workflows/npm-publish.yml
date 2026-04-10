@@ -1,4 +1,4 @@
-name: Publier sur GitHub Package Registry
+name: Publier sur npm
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   publish:
@@ -15,13 +14,13 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Configuration de Node.js avec GitHub Package Registry
-        uses: actions/setup-node@v4
+      - name: Configuration de Node.js avec npm
+        uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
-          registry-url: 'https://npm.pkg.github.com'
+          registry-url: 'https://registry.npmjs.org'
           scope: '@ia-generative'
 
       - name: Activation de corepack et pnpm
@@ -48,10 +47,10 @@ jobs:
           fi
           echo "✅ Versions cohérentes : $PKG_VERSION"
 
-      - name: Publication sur GitHub Package Registry
-        run: npm publish
+      - name: Publication sur npm
+        run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Création de la GitHub Release
         uses: softprops/action-gh-release@v2
@@ -61,15 +60,6 @@ jobs:
           generate_release_notes: true
           body: |
             ## 📦 Installation
-
-            ### Prérequis : authentification GitHub Package Registry
-
-            ```bash
-            npm config set @ia-generative:registry https://npm.pkg.github.com
-            npm config set //npm.pkg.github.com/:_authToken YOUR_GITHUB_TOKEN
-            ```
-
-            > Le token GitHub doit avoir le scope `read:packages`.
 
             ### Installation du node n8n
 
@@ -84,13 +74,8 @@ jobs:
 
             USER root
 
-            ARG GITHUB_TOKEN
-
-            RUN npm config set @ia-generative:registry https://npm.pkg.github.com \
-                && npm config set //npm.pkg.github.com/:_authToken ${GITHUB_TOKEN} \
-                && cd /usr/local/lib \
-                && npm install @ia-generative/n8n-nodes-playwright-core@${{ github.ref_name }} \
-                && npm config delete //npm.pkg.github.com/:_authToken
+            RUN cd /usr/local/lib \
+                && npm install @ia-generative/n8n-nodes-playwright-core@${{ github.ref_name }}
 
             USER node
             ```

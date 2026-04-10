@@ -16,9 +16,15 @@
 		"name": "Killian Courvoisier",
 		"email": "dev.killian.courvoisier@gmail.com"
 	},
+	"contributors": [
+		{
+			"name": "sebthemonster",
+			"email": "sebastien@sebthemonster.com"
+		}
+	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/IA-Generative/n8n-nodes-playwright-core"
+		"url": "git+https://github.com/IA-Generative/n8n-nodes-playwright-core.git"
 	},
 	"engines": {
 		"node": ">=22.22.1",

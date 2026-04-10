@@ -8,7 +8,12 @@ import {
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
 import { BrowserConnectionMode, BrowserType, IBrowserOptions } from './types';
-import { closeSession, getOrCreateSession, resolveSessionKey } from './sessionStore';
+import {
+	closeSession,
+	getOrCreateSession,
+	getSessionEndpoint,
+	resolveSessionKey,
+} from './sessionStore';
 
 export class Playwright implements INodeType {
 	description: INodeTypeDescription = {
@@ -448,10 +453,10 @@ return [{
 				displayName: 'Browser Endpoint',
 				name: 'browserEndpoint',
 				type: 'string',
-				default: 'ws://playwright:3000',
-				placeholder: 'ws://playwright:3000 or http://playwright:3000',
-				required: true,
-				description: 'Remote browser endpoint used when a new session is created',
+				default: '',
+				placeholder: 'ws://playwright:3000 (hérité du noeud précédent si vide)',
+				description:
+					'Remote browser endpoint used when a new session is created. Leave empty to reuse the endpoint from the previous Playwright node.',
 				displayOptions: {
 					hide: {
 						operation: ['closeSession'],
@@ -565,13 +570,23 @@ return [{
 				) as BrowserConnectionMode;
 				const connectionMode: BrowserConnectionMode =
 					browserType === 'firefox' ? 'ws' : rawConnectionMode;
-				const browserEndpoint = this.getNodeParameter('browserEndpoint', i) as string;
+
+				const propagatedEndpoint = playwrightMeta?.browserEndpoint as string | undefined;
+				const rawBrowserEndpoint = this.getNodeParameter('browserEndpoint', i, '') as string;
+				const browserEndpoint =
+					rawBrowserEndpoint.trim() ||
+					getSessionEndpoint(sessionKey) ||
+					propagatedEndpoint?.trim() ||
+					'';
+
 				const playwright = require('playwright-core');
 
 				if (!browserEndpoint) {
-					throw new NodeOperationError(this.getNode(), 'Browser endpoint is required', {
-						itemIndex: i,
-					});
+					throw new NodeOperationError(
+						this.getNode(),
+						'Browser endpoint is required. Set it on this node or on the preceding Playwright node.',
+						{ itemIndex: i },
+					);
 				}
 
 				const session = await getOrCreateSession(
@@ -596,6 +611,7 @@ return [{
 						item.json.playwright = {
 							...((item.json.playwright as object) ?? {}),
 							sessionKey,
+							browserEndpoint,
 						};
 					}
 					returnData.push(...result);
@@ -604,6 +620,7 @@ return [{
 					(result as INodeExecutionData).json.playwright = {
 						...(((result as INodeExecutionData).json.playwright as object) ?? {}),
 						sessionKey,
+						browserEndpoint,
 					};
 					returnData.push(result as INodeExecutionData);
 				}

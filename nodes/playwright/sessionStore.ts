@@ -8,6 +8,7 @@ interface IStoredSession {
 	browser: Browser;
 	context: BrowserContext;
 	page: Page;
+	endpoint: string;
 }
 
 const sessions = new Map<string, IStoredSession>();
@@ -67,11 +68,16 @@ export async function getOrCreateSession(
 		browser,
 		context,
 		page,
+		endpoint: browserEndpoint,
 	};
 
 	sessions.set(sessionKey, session);
 
 	return session;
+}
+
+export function getSessionEndpoint(sessionKey: string): string | undefined {
+	return sessions.get(sessionKey)?.endpoint;
 }
 
 export async function closeSession(sessionKey: string): Promise<boolean> {

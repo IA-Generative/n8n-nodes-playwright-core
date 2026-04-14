@@ -29,7 +29,12 @@ export class Playwright implements INodeType {
 		},
 		inputs: ['main'],
 		outputs: ['main'],
-
+		credentials: [
+			{
+				name: 'playwrightBasicAuthApi',
+				required: false,
+			},
+		],
 		properties: [
 			{
 				displayName: 'Browser',
@@ -124,7 +129,7 @@ export class Playwright implements INodeType {
 			},
 
 			{
-				displayName: 'Session ID à fermer',
+				displayName: 'Session ID À Fermer',
 				name: 'closeSessionId',
 				type: 'string',
 				default: '',
@@ -328,11 +333,56 @@ return [{
 								required: true,
 							},
 							{
+								displayName: 'Value Source',
+								name: 'valueSource',
+								type: 'options',
+								options: [
+									{
+										name: 'Literal',
+										value: 'literal',
+									},
+									{
+										name: 'Credential',
+										value: 'credential',
+									},
+								],
+								default: 'literal',
+								description: 'Choose whether to use a literal value or a credential field',
+							},
+							{
 								displayName: 'Value',
 								name: 'value',
 								type: 'string',
 								default: '',
 								description: 'Value to fill in the selected field',
+								displayOptions: {
+									show: {
+										valueSource: ['literal'],
+									},
+								},
+								required: true,
+							},
+							{
+								displayName: 'Credential Field',
+								name: 'credentialField',
+								type: 'options',
+								options: [
+									{
+										name: 'Username',
+										value: 'username',
+									},
+									{
+										name: 'Password',
+										value: 'password',
+									},
+								],
+								default: 'username',
+								description: 'Credential field to use for this form input',
+								displayOptions: {
+									show: {
+										valueSource: ['credential'],
+									},
+								},
 								required: true,
 							},
 						],

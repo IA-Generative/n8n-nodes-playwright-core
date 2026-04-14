@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml tsconfig.json gulpfile.js index.js ./
 COPY nodes ./nodes
+COPY credentials ./credentials
 
 RUN corepack enable && corepack prepare pnpm@9.1.4 --activate
 RUN pnpm install --ignore-scripts

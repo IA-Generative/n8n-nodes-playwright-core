@@ -47,6 +47,9 @@
 		"n8nNodesApiVersion": 1,
 		"nodes": [
 			"dist/nodes/playwright/Playwright.node.js"
+		],
+		"credentials": [
+			"dist/credentials/PlaywrightBasicAuthApi.credentials.js"
 		]
 	},
 	"devDependencies": {

@@ -33,6 +33,11 @@ export class Playwright implements INodeType {
 			{
 				name: 'playwrightBasicAuthApi',
 				required: false,
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+					},
+				},
 			},
 		],
 		properties: [

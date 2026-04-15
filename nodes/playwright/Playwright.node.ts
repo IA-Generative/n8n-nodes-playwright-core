@@ -42,25 +42,6 @@ export class Playwright implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Browser',
-				name: 'browser',
-				type: 'options',
-				noDataExpression: true,
-				options: [
-					{
-						name: 'Firefox',
-						value: 'firefox',
-						description: 'Mozilla Firefox',
-					},
-					{
-						name: 'Chrome',
-						value: 'chromium',
-						description: 'Google Chrome version opensource',
-					},
-				],
-				default: 'firefox',
-			},
-			{
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
@@ -119,6 +100,40 @@ export class Playwright implements INodeType {
 			},
 
 			{
+				displayName: 'Browser',
+				name: 'browser',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Firefox',
+						value: 'firefox',
+						description: 'Mozilla Firefox',
+					},
+					{
+						name: 'Chrome',
+						value: 'chromium',
+						description: 'Google Chrome version opensource',
+					},
+				],
+				default: 'firefox',
+			},
+
+			{
+				displayName: 'Leave Session Open',
+				name: 'leaveSessionOpen',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to keep the browser session open for the next Playwright node',
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+			},
+
+
+			{
 				displayName: 'URL',
 				name: 'url',
 				type: 'string',
@@ -143,19 +158,6 @@ export class Playwright implements INodeType {
 					'ID of the session to close. Leave empty to close the session propagated from the previous node.',
 				displayOptions: {
 					show: {
-						operation: ['closeSession'],
-					},
-				},
-			},
-
-			{
-				displayName: 'Leave Session Open',
-				name: 'leaveSessionOpen',
-				type: 'boolean',
-				default: true,
-				description: 'Whether to keep the browser session open for the next Playwright node',
-				displayOptions: {
-					hide: {
 						operation: ['closeSession'],
 					},
 				},
@@ -403,6 +405,19 @@ return [{
 				displayOptions: {
 					show: {
 						operation: ['fillForm'],
+					},
+				},
+			},
+			{
+				displayName:
+					"If disabled, the form will be filled only. Use the 'Click Element' operation later in the workflow if you want to submit it manually.",
+				name: 'submitFormNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+						submitForm: [false],
 					},
 				},
 			},

@@ -2,7 +2,8 @@ import { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 export class PlaywrightBasicAuthApi implements ICredentialType {
 	name = 'playwrightBasicAuthApi';
-	displayName = 'Playwright Basic Auth API';
+	// eslint-disable-next-line n8n-nodes-base/cred-class-field-display-name-missing-api
+	displayName = 'Playwright Basic Auth';
 
 	properties: INodeProperties[] = [
 		{

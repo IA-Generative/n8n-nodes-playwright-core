@@ -132,7 +132,6 @@ export class Playwright implements INodeType {
 				},
 			},
 
-
 			{
 				displayName: 'URL',
 				name: 'url',

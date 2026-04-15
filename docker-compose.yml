@@ -28,6 +28,7 @@ services:
       dockerfile: Dockerfile-playwright
     ports:
       - "3000:3000"
+      - "9222:9222"
 
 volumes:
   n8n_data:

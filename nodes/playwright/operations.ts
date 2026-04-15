@@ -906,6 +906,9 @@ export async function handleOperation(
 				fields?: FillField[];
 			};
 
+			const submitForm = executeFunctions.getNodeParameter('submitForm', itemIndex, false) as boolean;
+			const submitSelector = executeFunctions.getNodeParameter('submitSelector', itemIndex, '') as string;
+
 			const fields = (fillFields.fields || []).filter((field) => field.selector?.trim());
 
 			if (fields.length === 0) {
@@ -986,11 +989,43 @@ export async function handleOperation(
 				}
 			}
 
+			let submitted = false;
+			let submittedWith:
+				| {
+					selectorType: 'css' | 'xpath';
+					selector: string;
+				}
+				| undefined;
+
+			if (submitForm) {
+				const trimmedSubmitSelector = submitSelector.trim();
+
+				if (!trimmedSubmitSelector) {
+					throw new NodeOperationError(
+						executeFunctions.getNode(),
+						'Submit selector is required when submit form is enabled',
+						{ itemIndex },
+					);
+				}
+
+				const { selectorType, locator } = getLocatorFromSelector(page, trimmedSubmitSelector);
+
+				await locator.click();
+
+				submitted = true;
+				submittedWith = {
+					selectorType,
+					selector: trimmedSubmitSelector,
+				};
+			}
+
 			return {
 				json: {
 					success: true,
 					filledFieldsCount: filledFields.length,
 					fields: filledFields,
+					submitted,
+					submittedWith,
 					url: page.url(),
 				},
 				pairedItem: {

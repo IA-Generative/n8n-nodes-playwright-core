@@ -389,7 +389,33 @@ return [{
 					},
 				],
 			},
-
+			{
+				displayName: 'Submit Form',
+				name: 'submitForm',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to click a submit element after filling the form',
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+					},
+				},
+			},
+			{
+				displayName: 'Submit Selector',
+				name: 'submitSelector',
+				type: 'string',
+				default: '',
+				placeholder: '#submit-button or //button[@type="submit"]',
+				description: 'CSS selector or XPath expression of the element to click to submit the form',
+				required: true,
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+						submitForm: [true],
+					},
+				},
+			},
 			{
 				displayName: 'Download URL',
 				name: 'downloadUrl',

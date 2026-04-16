@@ -1,6 +1,6 @@
 # @ia-generative/n8n-nodes-playwright-core
 
-This is an n8n community node. It lets you automate browser actions in your n8n workflows using Playwright Core over a remote CDP or WebSocket endpoint.
+This is an n8n community node. It lets you automate browser actions in your n8n workflows using Playwright Core over a remote WebSocket endpoint.
 
 [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
@@ -19,21 +19,21 @@ This is an n8n community node. It lets you automate browser actions in your n8n 
 
 This node supports the following operations:
 
-- **Navigate**: Navigate to a URL and return the current page content
-- **Get Text**: Extract text from an element using CSS selector or XPath
-- **Click Element**: Click an element using CSS selector or XPath
-- **Fill Form**: Fill one or more form fields using CSS selectors or XPath
-- **Take Screenshot**: Capture the current page as binary data
-- **Download File**: Download a file either from a clicked element or a direct URL
-- **Run Custom Script**: Execute custom JavaScript code with access to Playwright and n8n helpers
-- **Close Session**: Explicitly close a previously opened browser session
+* **Navigate**: Navigate to a URL and return the current page content
+* **Get Text**: Extract text from an element using CSS selector or XPath
+* **Click Element**: Click an element using CSS selector or XPath
+* **Fill Form**: Fill one or more form fields using CSS selectors or XPath
+* **Take Screenshot**: Capture the current page as binary data
+* **Download File**: Download a file either from a clicked element or a direct URL
+* **Run Custom Script**: Execute custom JavaScript code with access to Playwright and n8n helpers
+* **Close Session**: Explicitly close a previously opened browser session
 
 ### Selectors and form filling
 
 For **Get Text**, **Click Element**, and element-based **Download File**, you can choose between:
 
-- **CSS Selector**
-- **XPath**
+* **CSS Selector**
+* **XPath**
 
 For **Fill Form**, each field accepts either a CSS selector or an XPath expression. XPath is detected automatically when the selector starts with `/` or `(`.
 
@@ -43,9 +43,9 @@ This allows a single form operation to fill multiple fields in sequence.
 
 The **Take Screenshot** operation stores the screenshot as binary data and supports:
 
-- Full-page screenshots
-- Optional output path
-- Custom binary property name
+* Full-page screenshots
+* Optional output path
+* Custom binary property name
 
 ## Sessions
 
@@ -61,21 +61,16 @@ Each operation resolves its session key in the following order of priority:
 
 ### Session lifecycle
 
-- If **Leave Session Open** is enabled, the session stays alive after the operation and is available for subsequent Playwright nodes
-- If **Leave Session Open** is disabled, the session is closed immediately after the operation
-- The **Close Session** operation terminates a session explicitly at any point in the workflow
-- Sessions are automatically removed from memory when the remote browser disconnects
+* If **Leave Session Open** is enabled, the session stays alive after the operation and is available for subsequent Playwright nodes
+* If **Leave Session Open** is disabled, the session is closed immediately after the operation
+* The **Close Session** operation terminates a session explicitly at any point in the workflow
+* Sessions are automatically removed from memory when the remote browser disconnects
 
-### Connection modes
+### Remote browser connection
 
-New sessions connect to the remote browser using one of two modes:
-
-- **CDP** (Chrome DevTools Protocol) — supported for Chromium only
-- **Playwright WS** (WebSocket) — supported for Chromium and Firefox
+New sessions connect to the remote browser using a **Playwright WebSocket** endpoint.
 
 > ⚠️ Only **Chromium** and **Firefox** are currently supported. WebKit is not supported.
->
-> Firefox is only available in Playwright WS mode. CDP mode is Chromium-only.
 
 ### Typical session workflow
 
@@ -93,10 +88,10 @@ The **Download File** operation supports two download modes.
 
 The node can click a page element and try several strategies to capture the downloaded file, including:
 
-- Playwright download events
-- Direct response capture
-- Popup response capture
-- Fetching the resolved target URL when available
+* Playwright download events
+* Direct response capture
+* Popup response capture
+* Fetching the resolved target URL when available
 
 This is useful for flows where clicking a link or button triggers a document download or opens a PDF in a new page.
 
@@ -106,8 +101,8 @@ The node can also fetch a file directly from a provided URL.
 
 When needed, it can resolve relative URLs against the current page and try both:
 
-- In-page browser fetch with credentials
-- Direct request through the Playwright request context
+* In-page browser fetch with credentials
+* Direct request through the Playwright request context
 
 Downloaded files are returned as n8n binary data under the configured binary property name.
 
@@ -119,21 +114,21 @@ The **Run Custom Script** operation gives you direct access to the current Playw
 
 Your script can access:
 
-- `$page` - current Playwright page
-- `$browser` - current Playwright browser
-- `$playwright` - Playwright Core module
-- `$helpers` - n8n helper methods
-- `$json` - current input item JSON
-- `$input` - access to input data
-- `$getNodeParameter()` - access node parameters
-- other standard n8n Code node variables available through the workflow data proxy
+* `$page` - current Playwright page
+* `$browser` - current Playwright browser
+* `$playwright` - Playwright Core module
+* `$helpers` - n8n helper methods
+* `$json` - current input item JSON
+* `$input` - access to input data
+* `$getNodeParameter()` - access node parameters
+* other standard n8n Code node variables available through the workflow data proxy
 
 ### Notes
 
-- Your script must return an array of items
-- Binary data can be created with `$helpers.prepareBinaryData()`
-- `console.log()` output is available in manual executions
-- The script runs in a sandboxed VM environment
+* Your script must return an array of items
+* Binary data can be created with `$helpers.prepareBinaryData()`
+* `console.log()` output is available in manual executions
+* The script runs in a sandboxed VM environment
 
 ### Example
 
@@ -175,9 +170,9 @@ CMD ["npx", "playwright@1.58.2", "run-server", "--port", "3000"]
 
 **What it does:**
 
-- Starts from the official Microsoft Playwright base image pinned to **v1.58.2** — the same version used by this node
-- Installs Chromium and Firefox browser binaries
-- Runs `playwright run-server` on port **3000**, which exposes a WebSocket endpoint compatible with `playwright.connect()`
+* Starts from the official Microsoft Playwright base image pinned to **v1.58.2** — the same version used by this node
+* Installs Chromium and Firefox browser binaries
+* Runs `playwright run-server` on port **3000**, which exposes a WebSocket endpoint compatible with `playwright.connect()`
 
 > The Playwright version in this image **must match** the `playwright-core` version used by the node (currently `1.58.2`). See the [Compatibility](#compatibility) section for details.
 
@@ -213,7 +208,7 @@ docker compose up
 
 In your n8n Playwright node credentials, set the browser endpoint to:
 
-```
+```text
 ws://playwright:3000
 ```
 
@@ -223,7 +218,7 @@ The `playwright` hostname resolves automatically via Docker Compose's internal n
 
 A pre-built image is published at:
 
-```
+```text
 ghcr.io/ia-generative/playwright:v1.58.2-jammy-browsers
 ```
 
@@ -240,8 +235,8 @@ playwright:
 
 The companion repository [IA-Generative/n8n-image](https://github.com/IA-Generative/n8n-image) provides production-ready Docker images for the full stack:
 
-- `n8n-image/playwright/` — the Dockerfile for the remote Playwright browser server (mirrors `Dockerfile-playwright` in this repo)
-- `n8n-image/nodes/` — the package manifest that pins this node (`n8n-nodes-playwright-core`) as a dependency of the n8n image
+* `n8n-image/playwright/` — the Dockerfile for the remote Playwright browser server (mirrors `Dockerfile-playwright` in this repo)
+* `n8n-image/nodes/` — the package manifest that pins this node (`n8n-nodes-playwright-core`) as a dependency of the n8n image
 
 > ⚠️ **Version parity is required.** The version of `playwright-core` declared in this package **must match** the Playwright version used in `n8n-image/playwright/Dockerfile`. Any mismatch between the two repositories will cause connection or protocol errors at runtime.
 
@@ -281,9 +276,9 @@ docker build -t my-n8n .
 
 This node requires:
 
-- n8n 1.0.0 or later
-- Node.js 22.22.1 or later
-- A Playwright-compatible remote browser endpoint reachable over CDP or WebSocket
+* n8n 1.0.0 or later
+* Node.js 22.22.1 or later
+* A Playwright-compatible remote browser endpoint reachable over WebSocket
   (e.g. a self-hosted Playwright server or any equivalent service, including [Browserless](https://docs.browserless.io/))
 
 This fork does not install browser binaries automatically. Browser execution is expected to be handled by a remote Playwright-compatible service.
@@ -310,10 +305,10 @@ npm install playwright@1.58.2
 
 ## Resources
 
-- [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
-- [Playwright documentation](https://playwright.dev/docs/intro)
-- [Playwright API reference](https://playwright.dev/docs/api/class-playwright)
-- [IA-Generative/n8n-image](https://github.com/IA-Generative/n8n-image) — companion repository with production Docker images for the full n8n + Playwright stack
+* [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
+* [Playwright documentation](https://playwright.dev/docs/intro)
+* [Playwright API reference](https://playwright.dev/docs/api/class-playwright)
+* [IA-Generative/n8n-image](https://github.com/IA-Generative/n8n-image) — companion repository with production Docker images for the full n8n + Playwright stack
 
 ## Version history
 
@@ -323,16 +318,15 @@ Initial public version of this fork.
 
 Main changes compared with the original upstream project:
 
-- Migrated to `playwright-core` (no local browser binaries)
-- Switched to a remote CDP/WebSocket-based browser connection model
-- Added support for Playwright WebSocket connection mode in addition to CDP
-- Added reusable session support with automatic key propagation across nodes
-- Sessions are stored in memory and cleaned up automatically on browser disconnect
-- Added explicit session closing with the **Close Session** operation
-- Added **Download File** operation with multiple download strategies
-- Improved form filling with support for multiple fields and XPath selectors
-- Kept custom script execution with sandboxed access to Playwright and n8n helpers
-- Pinned `playwright-core` to **1.58.2** for predictable server compatibility
+* Migrated to `playwright-core` (no local browser binaries)
+* Switched to a remote WebSocket-based browser connection model
+* Added reusable session support with automatic key propagation across nodes
+* Sessions are stored in memory and cleaned up automatically on browser disconnect
+* Added explicit session closing with the **Close Session** operation
+* Added **Download File** operation with multiple download strategies
+* Improved form filling with support for multiple fields and XPath selectors
+* Kept custom script execution with sandboxed access to Playwright and n8n helpers
+* Pinned `playwright-core` to **1.58.2** for predictable server compatibility
 
 ## Acknowledgements
 

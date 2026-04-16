@@ -7,7 +7,7 @@ import {
 } from 'n8n-workflow';
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
-import { BrowserConnectionMode, BrowserType, IBrowserOptions } from './types';
+import { BrowserType, IBrowserOptions } from './types';
 import {
 	closeSession,
 	getOrCreateSession,
@@ -521,31 +521,6 @@ return [{
 			},
 
 			{
-				displayName: 'Connection Mode',
-				name: 'connectionMode',
-				type: 'options',
-				options: [
-					{
-						name: 'Playwright WS',
-						value: 'ws',
-						description: 'Connect using a Playwright WebSocket endpoint',
-					},
-					{
-						name: 'CDP',
-						value: 'cdp',
-						description: 'Connect using Chromium CDP (Chromium only)',
-					},
-				],
-				default: 'ws',
-				description: 'Choose how to connect to the remote browser',
-				displayOptions: {
-					hide: {
-						operation: ['closeSession'],
-					},
-				},
-			},
-
-			{
 				displayName: 'Browser Endpoint',
 				name: 'browserEndpoint',
 				type: 'string',
@@ -659,13 +634,6 @@ return [{
 
 				const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
 				const browserType = this.getNodeParameter('browser', i, 'chromium') as BrowserType;
-				const rawConnectionMode = this.getNodeParameter(
-					'connectionMode',
-					i,
-					'ws',
-				) as BrowserConnectionMode;
-				const connectionMode: BrowserConnectionMode =
-					browserType === 'firefox' ? 'ws' : rawConnectionMode;
 
 				const propagatedEndpoint = playwrightMeta?.browserEndpoint as string | undefined;
 				const rawBrowserEndpoint = this.getNodeParameter('browserEndpoint', i, '') as string;
@@ -688,7 +656,6 @@ return [{
 				const session = await getOrCreateSession(
 					playwright,
 					sessionKey,
-					connectionMode,
 					browserEndpoint,
 					browserOptions.timeout || 30000,
 					browserType,

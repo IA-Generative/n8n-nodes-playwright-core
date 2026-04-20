@@ -132,7 +132,6 @@ export class Playwright implements INodeType {
 				},
 			},
 
-
 			{
 				displayName: 'URL',
 				name: 'url',
@@ -396,6 +395,7 @@ return [{
 					},
 				],
 			},
+
 			{
 				displayName: 'Submit Form',
 				name: 'submitForm',
@@ -408,6 +408,7 @@ return [{
 					},
 				},
 			},
+
 			{
 				displayName:
 					"If disabled, the form will be filled only. Use the 'Click Element' operation later in the workflow if you want to submit it manually.",
@@ -421,6 +422,7 @@ return [{
 					},
 				},
 			},
+
 			{
 				displayName: 'Submit Selector',
 				name: 'submitSelector',
@@ -436,6 +438,7 @@ return [{
 					},
 				},
 			},
+
 			{
 				displayName: 'Download URL',
 				name: 'downloadUrl',
@@ -593,6 +596,14 @@ return [{
 						description: 'The file path to save the screenshot to',
 					},
 				],
+			},
+
+			{
+				displayName:
+					"If the previous node is not a Playwright node, you must manually set the \"Session ID\" field in \"Browser Connection Options\" using the \"sessionKey\" returned by an earlier Playwright node.This is required to keep using the same Playwright session.",
+				name: 'helpfulInformation',
+				type: 'notice',
+				default: '',
 			},
 		],
 	};

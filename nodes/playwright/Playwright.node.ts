@@ -7,7 +7,7 @@ import {
 } from 'n8n-workflow';
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
-import { BrowserConnectionMode, BrowserType, IBrowserOptions } from './types';
+import { BrowserType, IBrowserOptions } from './types';
 import {
 	closeSession,
 	getOrCreateSession,
@@ -131,7 +131,6 @@ export class Playwright implements INodeType {
 					},
 				},
 			},
-
 
 			{
 				displayName: 'URL',
@@ -396,6 +395,7 @@ return [{
 					},
 				],
 			},
+
 			{
 				displayName: 'Submit Form',
 				name: 'submitForm',
@@ -408,6 +408,7 @@ return [{
 					},
 				},
 			},
+
 			{
 				displayName:
 					"If disabled, the form will be filled only. Use the 'Click Element' operation later in the workflow if you want to submit it manually.",
@@ -421,6 +422,7 @@ return [{
 					},
 				},
 			},
+
 			{
 				displayName: 'Submit Selector',
 				name: 'submitSelector',
@@ -436,6 +438,7 @@ return [{
 					},
 				},
 			},
+
 			{
 				displayName: 'Download URL',
 				name: 'downloadUrl',
@@ -521,31 +524,6 @@ return [{
 			},
 
 			{
-				displayName: 'Connection Mode',
-				name: 'connectionMode',
-				type: 'options',
-				options: [
-					{
-						name: 'Playwright WS',
-						value: 'ws',
-						description: 'Connect using a Playwright WebSocket endpoint',
-					},
-					{
-						name: 'CDP',
-						value: 'cdp',
-						description: 'Connect using Chromium CDP (Chromium only)',
-					},
-				],
-				default: 'ws',
-				description: 'Choose how to connect to the remote browser',
-				displayOptions: {
-					hide: {
-						operation: ['closeSession'],
-					},
-				},
-			},
-
-			{
 				displayName: 'Browser Endpoint',
 				name: 'browserEndpoint',
 				type: 'string',
@@ -619,6 +597,14 @@ return [{
 					},
 				],
 			},
+
+			{
+				displayName:
+					"If the previous node is not a Playwright node, you must manually set the \"Session ID\" field in \"Browser Connection Options\" using the \"sessionKey\" returned by an earlier Playwright node.This is required to keep using the same Playwright session.",
+				name: 'helpfulInformation',
+				type: 'notice',
+				default: '',
+			},
 		],
 	};
 
@@ -659,13 +645,6 @@ return [{
 
 				const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
 				const browserType = this.getNodeParameter('browser', i, 'chromium') as BrowserType;
-				const rawConnectionMode = this.getNodeParameter(
-					'connectionMode',
-					i,
-					'ws',
-				) as BrowserConnectionMode;
-				const connectionMode: BrowserConnectionMode =
-					browserType === 'firefox' ? 'ws' : rawConnectionMode;
 
 				const propagatedEndpoint = playwrightMeta?.browserEndpoint as string | undefined;
 				const rawBrowserEndpoint = this.getNodeParameter('browserEndpoint', i, '') as string;
@@ -688,7 +667,6 @@ return [{
 				const session = await getOrCreateSession(
 					playwright,
 					sessionKey,
-					connectionMode,
 					browserEndpoint,
 					browserOptions.timeout || 30000,
 					browserType,

@@ -312,6 +312,17 @@ npm install playwright@1.58.2
 
 ## Version history
 
+### 1.0.0
+
+Changes since `0.1.0`:
+
+* Removed the CDP connection mode and kept a single remote Playwright WebSocket connection model
+* Added support for basic and generic auth credentials in **Fill Form**
+* Added optional submit action support in **Fill Form**
+* Restricted the credential field to **Fill Form** only
+* Improved the **Fill Form** UI
+* Added a notice explaining how to reuse the same session when the previous node is not a Playwright node
+
 ### 0.1.0
 
 Initial public version of this fork.

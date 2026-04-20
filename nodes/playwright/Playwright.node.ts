@@ -7,7 +7,7 @@ import {
 } from 'n8n-workflow';
 import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
-import { BrowserConnectionMode, BrowserType, IBrowserOptions } from './types';
+import { BrowserType, IBrowserOptions } from './types';
 import {
 	closeSession,
 	getOrCreateSession,
@@ -29,27 +29,18 @@ export class Playwright implements INodeType {
 		},
 		inputs: ['main'],
 		outputs: ['main'],
-
-		properties: [
+		credentials: [
 			{
-				displayName: 'Browser',
-				name: 'browser',
-				type: 'options',
-				noDataExpression: true,
-				options: [
-					{
-						name: 'Firefox',
-						value: 'firefox',
-						description: 'Mozilla Firefox',
+				name: 'playwrightBasicAuthApi',
+				required: false,
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
 					},
-					{
-						name: 'Chrome',
-						value: 'chromium',
-						description: 'Google Chrome version opensource',
-					},
-				],
-				default: 'firefox',
+				},
 			},
+		],
+		properties: [
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -109,6 +100,39 @@ export class Playwright implements INodeType {
 			},
 
 			{
+				displayName: 'Browser',
+				name: 'browser',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Firefox',
+						value: 'firefox',
+						description: 'Mozilla Firefox',
+					},
+					{
+						name: 'Chrome',
+						value: 'chromium',
+						description: 'Google Chrome version opensource',
+					},
+				],
+				default: 'firefox',
+			},
+
+			{
+				displayName: 'Leave Session Open',
+				name: 'leaveSessionOpen',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to keep the browser session open for the next Playwright node',
+				displayOptions: {
+					hide: {
+						operation: ['closeSession'],
+					},
+				},
+			},
+
+			{
 				displayName: 'URL',
 				name: 'url',
 				type: 'string',
@@ -124,7 +148,7 @@ export class Playwright implements INodeType {
 			},
 
 			{
-				displayName: 'Session ID à fermer',
+				displayName: 'Session ID À Fermer',
 				name: 'closeSessionId',
 				type: 'string',
 				default: '',
@@ -133,19 +157,6 @@ export class Playwright implements INodeType {
 					'ID of the session to close. Leave empty to close the session propagated from the previous node.',
 				displayOptions: {
 					show: {
-						operation: ['closeSession'],
-					},
-				},
-			},
-
-			{
-				displayName: 'Leave Session Open',
-				name: 'leaveSessionOpen',
-				type: 'boolean',
-				default: true,
-				description: 'Whether to keep the browser session open for the next Playwright node',
-				displayOptions: {
-					hide: {
 						operation: ['closeSession'],
 					},
 				},
@@ -328,16 +339,104 @@ return [{
 								required: true,
 							},
 							{
+								displayName: 'Value Source',
+								name: 'valueSource',
+								type: 'options',
+								options: [
+									{
+										name: 'Literal',
+										value: 'literal',
+									},
+									{
+										name: 'Credential',
+										value: 'credential',
+									},
+								],
+								default: 'literal',
+								description: 'Choose whether to use a literal value or a credential field',
+							},
+							{
 								displayName: 'Value',
 								name: 'value',
 								type: 'string',
 								default: '',
 								description: 'Value to fill in the selected field',
+								displayOptions: {
+									show: {
+										valueSource: ['literal'],
+									},
+								},
+								required: true,
+							},
+							{
+								displayName: 'Credential Field',
+								name: 'credentialField',
+								type: 'options',
+								options: [
+									{
+										name: 'Username',
+										value: 'username',
+									},
+									{
+										name: 'Password',
+										value: 'password',
+									},
+								],
+								default: 'username',
+								description: 'Credential field to use for this form input',
+								displayOptions: {
+									show: {
+										valueSource: ['credential'],
+									},
+								},
 								required: true,
 							},
 						],
 					},
 				],
+			},
+
+			{
+				displayName: 'Submit Form',
+				name: 'submitForm',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to click a submit element after filling the form',
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+					},
+				},
+			},
+
+			{
+				displayName:
+					"If disabled, the form will be filled only. Use the 'Click Element' operation later in the workflow if you want to submit it manually.",
+				name: 'submitFormNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+						submitForm: [false],
+					},
+				},
+			},
+
+			{
+				displayName: 'Submit Selector',
+				name: 'submitSelector',
+				type: 'string',
+				default: '',
+				placeholder: '#submit-button or //button[@type="submit"]',
+				description: 'CSS selector or XPath expression of the element to click to submit the form',
+				required: true,
+				displayOptions: {
+					show: {
+						operation: ['fillForm'],
+						submitForm: [true],
+					},
+				},
 			},
 
 			{
@@ -425,31 +524,6 @@ return [{
 			},
 
 			{
-				displayName: 'Connection Mode',
-				name: 'connectionMode',
-				type: 'options',
-				options: [
-					{
-						name: 'Playwright WS',
-						value: 'ws',
-						description: 'Connect using a Playwright WebSocket endpoint',
-					},
-					{
-						name: 'CDP',
-						value: 'cdp',
-						description: 'Connect using Chromium CDP (Chromium only)',
-					},
-				],
-				default: 'ws',
-				description: 'Choose how to connect to the remote browser',
-				displayOptions: {
-					hide: {
-						operation: ['closeSession'],
-					},
-				},
-			},
-
-			{
 				displayName: 'Browser Endpoint',
 				name: 'browserEndpoint',
 				type: 'string',
@@ -523,6 +597,14 @@ return [{
 					},
 				],
 			},
+
+			{
+				displayName:
+					"If the previous node is not a Playwright node, you must manually set the \"Session ID\" field in \"Browser Connection Options\" using the \"sessionKey\" returned by an earlier Playwright node.This is required to keep using the same Playwright session.",
+				name: 'helpfulInformation',
+				type: 'notice',
+				default: '',
+			},
 		],
 	};
 
@@ -563,13 +645,6 @@ return [{
 
 				const leaveSessionOpen = this.getNodeParameter('leaveSessionOpen', i, true) as boolean;
 				const browserType = this.getNodeParameter('browser', i, 'chromium') as BrowserType;
-				const rawConnectionMode = this.getNodeParameter(
-					'connectionMode',
-					i,
-					'ws',
-				) as BrowserConnectionMode;
-				const connectionMode: BrowserConnectionMode =
-					browserType === 'firefox' ? 'ws' : rawConnectionMode;
 
 				const propagatedEndpoint = playwrightMeta?.browserEndpoint as string | undefined;
 				const rawBrowserEndpoint = this.getNodeParameter('browserEndpoint', i, '') as string;
@@ -592,7 +667,6 @@ return [{
 				const session = await getOrCreateSession(
 					playwright,
 					sessionKey,
-					connectionMode,
 					browserEndpoint,
 					browserOptions.timeout || 30000,
 					browserType,

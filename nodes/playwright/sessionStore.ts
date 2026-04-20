@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import type { BrowserConnectionMode, BrowserType } from './types';
+import type { BrowserType } from './types';
 
 type PlaywrightModule = typeof import('playwright-core');
 
@@ -29,7 +29,6 @@ export function resolveSessionKey(
 export async function getOrCreateSession(
 	playwright: PlaywrightModule,
 	sessionKey: string,
-	connectionMode: BrowserConnectionMode,
 	browserEndpoint: string,
 	timeout: number,
 	browserType: BrowserType = 'chromium',
@@ -49,13 +48,7 @@ export async function getOrCreateSession(
 		sessions.delete(sessionKey);
 	}
 
-	const browser = await connectToBrowser(
-		playwright,
-		browserType,
-		connectionMode,
-		browserEndpoint,
-		timeout,
-	);
+	const browser = await connectToBrowser(playwright, browserType, browserEndpoint, timeout);
 
 	browser.on('disconnected', () => {
 		sessions.delete(sessionKey);
@@ -101,21 +94,10 @@ export async function closeSession(sessionKey: string): Promise<boolean> {
 async function connectToBrowser(
 	playwright: PlaywrightModule,
 	browserType: BrowserType,
-	connectionMode: BrowserConnectionMode,
 	browserEndpoint: string,
 	timeout: number,
 ): Promise<Browser> {
 	const playwrightBrowser = playwright[browserType];
-
-	if (connectionMode === 'cdp') {
-		if (browserType === 'firefox') {
-			throw new Error(
-				"Firefox ne supporte pas la connexion via CDP. Utilisez le mode 'Playwright WS'.",
-			);
-		}
-		return playwrightBrowser.connectOverCDP(browserEndpoint, { timeout });
-	}
-
 	return playwrightBrowser.connect(browserEndpoint, { timeout });
 }
 
@@ -125,7 +107,7 @@ function isSessionUsable(session: IStoredSession): boolean {
 
 	const contextIsClosed =
 		typeof (session.context as BrowserContext & { isClosed?: () => boolean }).isClosed ===
-		'function'
+			'function'
 			? (session.context as BrowserContext & { isClosed: () => boolean }).isClosed()
 			: false;
 

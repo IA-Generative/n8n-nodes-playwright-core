@@ -1,6 +1,13 @@
 import { IExecuteFunctions, INodeExecutionData, NodeOperationError } from 'n8n-workflow';
 import { Download, Page, Response } from 'playwright-core';
 
+type FillField = {
+	selector: string;
+	valueSource?: 'literal' | 'credential';
+	value?: string;
+	credentialField?: 'username' | 'password';
+};
+
 function getActionLocator(executeFunctions: IExecuteFunctions, itemIndex: number, page: Page) {
 	const selectorType = executeFunctions.getNodeParameter('selectorType', itemIndex) as string;
 	const selector =
@@ -715,7 +722,7 @@ async function handleDownloadFromElement(
 
 			try {
 				await popupPage.close();
-			} catch {}
+			} catch { }
 
 			return {
 				binary: {
@@ -767,7 +774,7 @@ async function handleDownloadFromElement(
 
 				try {
 					await popupPage.close();
-				} catch {}
+				} catch { }
 
 				return {
 					binary: {
@@ -896,11 +903,11 @@ export async function handleOperation(
 
 		case 'fillForm': {
 			const fillFields = executeFunctions.getNodeParameter('fillFields', itemIndex, {}) as {
-				fields?: Array<{
-					selector: string;
-					value: string;
-				}>;
+				fields?: FillField[];
 			};
+
+			const submitForm = executeFunctions.getNodeParameter('submitForm', itemIndex, false) as boolean;
+			const submitSelector = executeFunctions.getNodeParameter('submitSelector', itemIndex, '') as string;
 
 			const fields = (fillFields.fields || []).filter((field) => field.selector?.trim());
 
@@ -912,24 +919,104 @@ export async function handleOperation(
 				);
 			}
 
+			let credentials:
+				| {
+					username?: string;
+					password?: string;
+				}
+				| undefined;
+
 			const filledFields: Array<{
 				selectorType: 'css' | 'xpath';
 				selector: string;
-				value: string;
+				valueSource: 'literal' | 'credential';
+				credentialField?: 'username' | 'password';
 			}> = [];
 
 			for (const field of fields) {
 				const selector = field.selector.trim();
-				const value = field.value ?? '';
+				const valueSource = field.valueSource ?? 'literal';
 				const { selectorType, locator } = getLocatorFromSelector(page, selector);
 
-				await locator.fill(value);
+				let valueToFill = '';
 
-				filledFields.push({
+				if (valueSource === 'credential') {
+					credentials ??= (await executeFunctions.getCredentials(
+						'playwrightBasicAuthApi',
+					)) as {
+						username?: string;
+						password?: string;
+					};
+
+					const credentialField = field.credentialField;
+
+					if (!credentialField) {
+						throw new NodeOperationError(
+							executeFunctions.getNode(),
+							'Credential field is required when value source is credential',
+							{ itemIndex },
+						);
+					}
+
+					valueToFill = credentials[credentialField] ?? '';
+
+					if (!valueToFill) {
+						throw new NodeOperationError(
+							executeFunctions.getNode(),
+							`Credential field "${credentialField}" is empty or missing`,
+							{ itemIndex },
+						);
+					}
+
+					await locator.fill(valueToFill);
+
+					filledFields.push({
+						selectorType,
+						selector,
+						valueSource,
+						credentialField,
+					});
+				} else {
+					valueToFill = field.value ?? '';
+
+					await locator.fill(valueToFill);
+
+					filledFields.push({
+						selectorType,
+						selector,
+						valueSource,
+					});
+				}
+			}
+
+			let submitted = false;
+			let submittedWith:
+				| {
+					selectorType: 'css' | 'xpath';
+					selector: string;
+				}
+				| undefined;
+
+			if (submitForm) {
+				const trimmedSubmitSelector = submitSelector.trim();
+
+				if (!trimmedSubmitSelector) {
+					throw new NodeOperationError(
+						executeFunctions.getNode(),
+						'Submit selector is required when submit form is enabled',
+						{ itemIndex },
+					);
+				}
+
+				const { selectorType, locator } = getLocatorFromSelector(page, trimmedSubmitSelector);
+
+				await locator.click();
+
+				submitted = true;
+				submittedWith = {
 					selectorType,
-					selector,
-					value,
-				});
+					selector: trimmedSubmitSelector,
+				};
 			}
 
 			return {
@@ -937,6 +1024,8 @@ export async function handleOperation(
 					success: true,
 					filledFieldsCount: filledFields.length,
 					fields: filledFields,
+					submitted,
+					submittedWith,
 					url: page.url(),
 				},
 				pairedItem: {

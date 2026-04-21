@@ -163,8 +163,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV XDG_RUNTIME_DIR=/tmp/.chromium
 ENV XDG_CACHE_HOME=/tmp/.chromium
 ENV NPM_CONFIG_CACHE=/tmp/.npm
-RUN npx --yes playwright@1.58.2 install firefox
-RUN npx --yes playwright@1.58.2 install chromium
+RUN npx --yes playwright@1.58.2 install firefox \
+		&& npx --yes playwright@1.58.2 install chromium
 CMD ["npx", "playwright@1.58.2", "run-server", "--port", "3000"]
 ```
 
@@ -311,6 +311,17 @@ npm install playwright@1.58.2
 * [IA-Generative/n8n-image](https://github.com/IA-Generative/n8n-image) — companion repository with production Docker images for the full n8n + Playwright stack
 
 ## Version history
+
+### 1.0.0
+
+Changes since `0.1.0`:
+
+* Removed the CDP connection mode and kept a single remote Playwright WebSocket connection model
+* Added support for basic and generic auth credentials in **Fill Form**
+* Added optional submit action support in **Fill Form**
+* Restricted the credential field to **Fill Form** only
+* Improved the **Fill Form** UI
+* Added a notice explaining how to reuse the same session when the previous node is not a Playwright node
 
 ### 0.1.0
 

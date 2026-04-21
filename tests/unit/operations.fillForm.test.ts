@@ -61,7 +61,7 @@ test('fillForm fills literal fields and submits form', async () => {
         params: {
             fillFields: {
                 fields: [
-                    { selector: '#username', valueSource: 'literal', value: 'killian' },
+                    { selector: '#username', valueSource: 'literal', value: 'john' },
                     { selector: '//input[@name="password"]', valueSource: 'literal', value: 'secret' },
                 ],
             },
@@ -93,7 +93,7 @@ test('fillForm fills literal fields and submits form', async () => {
     });
 
     assert.deepEqual(calls, [
-        { selector: '#username', value: 'killian' },
+        { selector: '#username', value: 'john' },
         { selector: 'xpath=//input[@name="password"]', value: 'secret' },
         { selector: '#submit', clicked: true },
     ]);
@@ -157,7 +157,7 @@ test('fillForm throws when submit is enabled without submit selector', async () 
     const executeFunctions = createFakeExecuteFunctions({
         params: {
             fillFields: {
-                fields: [{ selector: '#username', valueSource: 'literal', value: 'killian' }],
+                fields: [{ selector: '#username', valueSource: 'literal', value: 'john' }],
             },
             submitForm: true,
             submitSelector: '   ',

@@ -35,6 +35,10 @@
 	"scripts": {
 		"preinstall": "npx only-allow pnpm",
 		"build": "tsc && gulp build:icons",
+		"build:test": "tsc -p tsconfig.json",
+		"test": "pnpm run build:test && node --test dist/tests/unit/**/*.test.js",
+		"test:integration": "pnpm run build:test && node --test dist/tests/integration/**/*.test.js",
+		"test:ci": "pnpm run build:test && node --test dist/tests/**/*.test.js",
 		"dev": "tsc --watch",
 		"format": "prettier nodes package.json --write",
 		"lint": "eslint nodes package.json",

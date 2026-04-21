@@ -4,7 +4,11 @@
         "module": "commonjs",
         "moduleResolution": "node",
         "target": "es2019",
-        "lib": ["es2019", "es2020", "es2022.error"],
+        "lib": [
+            "es2019",
+            "es2020",
+            "es2022.error"
+        ],
         "removeComments": true,
         "useUnknownInCatchVariables": false,
         "forceConsistentCasingInFileNames": true,
@@ -20,12 +24,13 @@
         "sourceMap": true,
         "skipLibCheck": true,
         "outDir": "./dist/",
-				"rootDir": ".",
+        "rootDir": ".",
     },
     "include": [
         "nodes/**/*",
         "nodes/**/*.json",
-        "package.json", "dist/nodes/browsers",
-        "credentials/**/*"
+        "credentials/**/*",
+        "tests/**/*",
+        "package.json"
     ],
 }

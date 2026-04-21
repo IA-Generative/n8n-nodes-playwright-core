@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - feat/tests
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.1
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Playwright test image
+        run: docker build -f Dockerfile-playwright -t local-playwright:test .
+
+      - name: Start Playwright server
+        run: |
+          docker run -d --rm \
+            --name playwright-test \
+            -p 3000:3000 \
+            local-playwright:test
+
+      - name: Resolve Docker host IP for browser container
+        shell: bash
+        run: |
+          HEX="$(docker exec playwright-test sh -lc "awk '\$2==\"00000000\" {print \$3}' /proc/net/route | head -n1")"
+          if [ -z "$HEX" ]; then
+            echo "Could not resolve Docker host gateway from browser container"
+            exit 1
+          fi
+
+          HOST_IP="$(python3 -c 'import sys; h=sys.argv[1].strip(); print(".".join(str(int(h[i:i+2],16)) for i in (6,4,2,0)))' "$HEX")"
+          echo "PLAYWRIGHT_TEST_HOST=$HOST_IP" >> "$GITHUB_ENV"
+          echo "Resolved PLAYWRIGHT_TEST_HOST=$HOST_IP"
+
+      - name: Wait for Playwright server
+        shell: bash
+        run: |
+          for i in $(seq 1 30); do
+            if python3 -c 'import socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1", 3000)); s.close()'; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Playwright server did not become ready in time"
+          docker logs playwright-test || true
+          exit 1
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run integration tests
+        env:
+          PLAYWRIGHT_WS_ENDPOINT: ws://127.0.0.1:3000
+        run: pnpm test:integration
+
+      - name: Show Playwright container logs on failure
+        if: failure()
+        run: docker logs playwright-test || true
+
+      - name: Stop Playwright server
+        if: always()
+        run: docker stop playwright-test || true

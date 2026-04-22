@@ -23,11 +23,17 @@ services:
       - n8n_cache:/home/node/.cache
 
   playwright:
-    image: ghcr.io/ia-generative/playwright:v1.58.2-jammy-browsers
+    image: ghcr.io/ia-generative/playwright:v1.58.2-jammy
     build:
       dockerfile: Dockerfile-playwright
     ports:
       - "3000:3000"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./Dockerfile-playwright
+    environment:
+      - DEBUG=pw:server,pw:protocol,pw:api
 
 volumes:
   n8n_data:

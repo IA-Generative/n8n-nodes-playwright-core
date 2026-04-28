@@ -23,7 +23,7 @@ function getActionLocator(executeFunctions: IExecuteFunctions, itemIndex: number
 	return { selectorType, selector, locator };
 }
 
-function inferSelectorType(selector: string): 'css' | 'xpath' {
+export function inferSelectorType(selector: string): 'css' | 'xpath' {
 	const trimmedSelector = selector.trim();
 
 	return trimmedSelector.startsWith('/') || trimmedSelector.startsWith('(') ? 'xpath' : 'css';
@@ -47,7 +47,7 @@ async function safely<T>(promise: Promise<T>): Promise<T | null> {
 	}
 }
 
-function looksLikeDownloadResponse(response: Response): boolean {
+export function looksLikeDownloadResponse(response: Response): boolean {
 	const headers = response.headers();
 	const contentDisposition = headers['content-disposition'] || '';
 	const contentType = headers['content-type'] || '';
@@ -62,7 +62,7 @@ function looksLikeDownloadResponse(response: Response): boolean {
 	);
 }
 
-function filenameFromDisposition(contentDisposition: string): string | null {
+export function filenameFromDisposition(contentDisposition: string): string | null {
 	const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
 	if (utf8Match?.[1]) {
 		try {
@@ -79,7 +79,7 @@ function filenameFromDisposition(contentDisposition: string): string | null {
 	return plainMatch?.[1]?.trim() || null;
 }
 
-function filenameFromUrl(url: string): string {
+export function filenameFromUrl(url: string): string {
 	try {
 		const parsed = new URL(url);
 		const lastSegment = parsed.pathname.split('/').filter(Boolean).pop();
@@ -89,7 +89,7 @@ function filenameFromUrl(url: string): string {
 	}
 }
 
-function resolveUrl(url: string, baseUrl: string): string {
+export function resolveUrl(url: string, baseUrl: string): string {
 	try {
 		return new URL(url, baseUrl).toString();
 	} catch {
@@ -97,7 +97,7 @@ function resolveUrl(url: string, baseUrl: string): string {
 	}
 }
 
-function isViewerLikeUrl(url: string): boolean {
+export function isViewerLikeUrl(url: string): boolean {
 	const lowerUrl = url.toLowerCase();
 
 	return (

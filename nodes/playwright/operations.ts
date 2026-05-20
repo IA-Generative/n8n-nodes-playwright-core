@@ -807,6 +807,97 @@ async function handleDownloadFromElement(
 	);
 }
 
+function joinUrl(baseUrl: string, path: string): string {
+	return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+}
+
+function extractClaimFqdn(responseBody: unknown): string | undefined {
+	if (!responseBody || typeof responseBody !== 'object') {
+		return undefined;
+	}
+
+	const body = responseBody as {
+		data?: {
+			fqdn?: unknown;
+		};
+	};
+
+	return typeof body.data?.fqdn === 'string' ? body.data.fqdn.trim() : undefined;
+}
+
+export async function handleClaimCreateInstance(
+	executeFunctions: IExecuteFunctions,
+	itemIndex: number,
+): Promise<INodeExecutionData> {
+	const claimControllerUrl = (
+		executeFunctions.getNodeParameter('claimControllerUrl', itemIndex) as string
+	).trim();
+	const ttl = (executeFunctions.getNodeParameter('claimTtl', itemIndex) as string).trim();
+	const timeout = executeFunctions.getNodeParameter('claimTimeout', itemIndex, 120000) as number;
+
+	if (!claimControllerUrl) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'Claim Controller URL is required', {
+			itemIndex,
+		});
+	}
+
+	if (!ttl) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'TTL is required', {
+			itemIndex,
+		});
+	}
+
+	const response = await fetch(joinUrl(claimControllerUrl, '/claim'), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			TTL: ttl,
+		}),
+		signal: AbortSignal.timeout(timeout),
+	});
+
+	if (!response.ok) {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			`Claim controller returned HTTP ${response.status}`,
+			{ itemIndex },
+		);
+	}
+
+	let responseBody: unknown;
+
+	try {
+		responseBody = await response.json();
+	} catch {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			'Claim controller response is not valid JSON',
+			{ itemIndex },
+		);
+	}
+
+	const fqdn = extractClaimFqdn(responseBody);
+
+	if (!fqdn) {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			'Claim controller response does not contain data.fqdn',
+			{ itemIndex },
+		);
+	}
+
+	return {
+		json: {
+			browserEndpoint: `ws://${fqdn}`,
+		},
+		pairedItem: {
+			item: itemIndex,
+		},
+	};
+}
+
 export async function handleOperation(
 	operation: string,
 	page: Page,

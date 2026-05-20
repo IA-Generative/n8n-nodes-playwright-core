@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { IExecuteFunctions, INodeExecutionData, NodeOperationError } from 'n8n-workflow';
 import { Download, Page, Response } from 'playwright-core';
 
@@ -6,6 +7,15 @@ type FillField = {
 	valueSource?: 'literal' | 'credential';
 	value?: string;
 	credentialField?: 'username' | 'password';
+};
+
+type ExecuteFunctionsWithClaimMetadata = IExecuteFunctions & {
+	getWorkflow?: () => {
+		id?: string | number;
+		name?: string;
+	};
+	getMode?: () => string;
+	getExecutionId?: () => string | undefined;
 };
 
 function getActionLocator(executeFunctions: IExecuteFunctions, itemIndex: number, page: Page) {
@@ -722,7 +732,7 @@ async function handleDownloadFromElement(
 
 			try {
 				await popupPage.close();
-			} catch { }
+			} catch {}
 
 			return {
 				binary: {
@@ -774,7 +784,7 @@ async function handleDownloadFromElement(
 
 				try {
 					await popupPage.close();
-				} catch { }
+				} catch {}
 
 				return {
 					binary: {
@@ -805,6 +815,38 @@ async function handleDownloadFromElement(
 		'No downloadable file was detected after the click',
 		{ itemIndex },
 	);
+}
+
+function slugifyClaimSessionPart(value: unknown, fallback: string): string {
+	const slug = String(value ?? '')
+		.toLowerCase()
+		.trim()
+		.replace(/\s+/g, '-')
+		.replace(/[^a-z0-9-_]/g, '-')
+		.replace(/-+/g, '-')
+		.replace(/^-|-$/g, '');
+
+	return slug || fallback;
+}
+
+function isClaimDevMode(mode: string): boolean {
+	return mode === 'manual' || mode === 'test';
+}
+
+function buildClaimSessionId(executeFunctions: IExecuteFunctions): string {
+	const context = executeFunctions as ExecuteFunctionsWithClaimMetadata;
+	const workflow = typeof context.getWorkflow === 'function' ? context.getWorkflow() : undefined;
+	const mode = typeof context.getMode === 'function' ? context.getMode() : '';
+	const executionId =
+		typeof context.getExecutionId === 'function' ? context.getExecutionId() : undefined;
+
+	const workflowId = slugifyClaimSessionPart(workflow?.id, 'unknown-workflow');
+	const workflowSlug = slugifyClaimSessionPart(workflow?.name, 'unnamed-workflow');
+	const suffix = isClaimDevMode(mode)
+		? 'dev'
+		: slugifyClaimSessionPart(executionId, randomUUID());
+
+	return `${workflowId}-${workflowSlug}-${suffix}`;
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -847,16 +889,32 @@ export async function handleClaimCreateInstance(
 		});
 	}
 
-	const response = await fetch(joinUrl(claimControllerUrl, '/claim'), {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			TTL: ttl,
-		}),
-		signal: AbortSignal.timeout(timeout),
-	});
+	const claimSessionId = buildClaimSessionId(executeFunctions);
+	const headers = {
+		'Content-Type': 'application/json',
+		'X-Session-ID': claimSessionId,
+	};
+
+	let response: Awaited<ReturnType<typeof fetch>>;
+
+	try {
+		response = await fetch(joinUrl(claimControllerUrl, '/claim'), {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				TTL: ttl,
+			}),
+			signal: AbortSignal.timeout(timeout),
+		});
+	} catch (error: any) {
+		const causeMessage = error.cause?.message || error.cause?.code || error.message;
+
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			`Failed to call claim controller: ${causeMessage}`,
+			{ itemIndex },
+		);
+	}
 
 	if (!response.ok) {
 		throw new NodeOperationError(

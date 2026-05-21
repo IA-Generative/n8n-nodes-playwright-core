@@ -4,11 +4,17 @@ import type { BrowserType } from './types';
 
 type PlaywrightModule = typeof import('playwright-core');
 
+type ProxyConfig = {
+	server: string;
+	bypass?: string;
+};
+
 interface IStoredSession {
 	browser: Browser;
 	context: BrowserContext;
 	page: Page;
 	endpoint: string;
+	proxySignature: string;
 }
 
 const sessions = new Map<string, IStoredSession>();
@@ -33,9 +39,16 @@ export async function getOrCreateSession(
 	timeout: number,
 	browserType: BrowserType = 'chromium',
 ): Promise<IStoredSession> {
+	const proxy = resolveProxyFromEnv();
+	const proxySignature = getProxySignature(proxy);
 	const existingSession = sessions.get(sessionKey);
 
-	if (existingSession && isSessionUsable(existingSession)) {
+	if (
+		existingSession &&
+		isSessionUsable(existingSession) &&
+		existingSession.endpoint === browserEndpoint &&
+		existingSession.proxySignature === proxySignature
+	) {
 		existingSession.page = await ensurePage(
 			existingSession.browser,
 			existingSession.context,
@@ -46,6 +59,10 @@ export async function getOrCreateSession(
 
 	if (existingSession) {
 		sessions.delete(sessionKey);
+
+		try {
+			await existingSession.browser.close();
+		} catch {}
 	}
 
 	const browser = await connectToBrowser(playwright, browserType, browserEndpoint, timeout);
@@ -54,7 +71,7 @@ export async function getOrCreateSession(
 		sessions.delete(sessionKey);
 	});
 
-	const context = browser.contexts()[0] || (await browser.newContext());
+	const context = await createContext(browser, proxy);
 	const page = context.pages()[0] || (await context.newPage());
 
 	const session: IStoredSession = {
@@ -62,6 +79,7 @@ export async function getOrCreateSession(
 		context,
 		page,
 		endpoint: browserEndpoint,
+		proxySignature,
 	};
 
 	sessions.set(sessionKey, session);
@@ -99,6 +117,54 @@ async function connectToBrowser(
 ): Promise<Browser> {
 	const playwrightBrowser = playwright[browserType];
 	return playwrightBrowser.connect(browserEndpoint, { timeout });
+}
+
+async function createContext(browser: Browser, proxy: ProxyConfig | undefined): Promise<BrowserContext> {
+	if (proxy) {
+		return browser.newContext({
+			proxy,
+		});
+	}
+
+	return browser.contexts()[0] || (await browser.newContext());
+}
+
+function resolveProxyFromEnv(): ProxyConfig | undefined {
+	const server =
+		getEnvValue('all_proxy', 'ALL_PROXY') ||
+		getEnvValue('https_proxy', 'HTTPS_PROXY') ||
+		getEnvValue('http_proxy', 'HTTP_PROXY');
+
+	if (!server) {
+		return undefined;
+	}
+
+	const bypass = getEnvValue('no_proxy', 'NO_PROXY');
+
+	return {
+		server,
+		...(bypass ? { bypass } : {}),
+	};
+}
+
+function getEnvValue(...names: string[]): string | undefined {
+	for (const name of names) {
+		const value = process.env[name]?.trim();
+
+		if (value) {
+			return value;
+		}
+	}
+
+	return undefined;
+}
+
+function getProxySignature(proxy: ProxyConfig | undefined): string {
+	if (!proxy) {
+		return '';
+	}
+
+	return `${proxy.server}|${proxy.bypass ?? ''}`;
 }
 
 function isSessionUsable(session: IStoredSession): boolean {

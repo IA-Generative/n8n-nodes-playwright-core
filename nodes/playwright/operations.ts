@@ -722,7 +722,7 @@ async function handleDownloadFromElement(
 
 			try {
 				await popupPage.close();
-			} catch { }
+			} catch {}
 
 			return {
 				binary: {
@@ -774,7 +774,7 @@ async function handleDownloadFromElement(
 
 				try {
 					await popupPage.close();
-				} catch { }
+				} catch {}
 
 				return {
 					binary: {

@@ -50,7 +50,8 @@
 	"n8n": {
 		"n8nNodesApiVersion": 1,
 		"nodes": [
-			"dist/nodes/playwright/Playwright.node.js"
+			"dist/nodes/playwright/Playwright.node.js",
+			"dist/nodes/claim/Claim.node.js"
 		],
 		"credentials": [
 			"dist/credentials/PlaywrightBasicAuthApi.credentials.js"

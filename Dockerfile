@@ -15,7 +15,7 @@ RUN mkdir -p /out/n8n-nodes-playwright \
     && cp -R dist /out/n8n-nodes-playwright/dist \
     && cp -R node_modules /out/n8n-nodes-playwright/node_modules
 
-FROM n8nio/n8n:2.8.3
+FROM n8nio/n8n:2.17.5
 
 USER root
 

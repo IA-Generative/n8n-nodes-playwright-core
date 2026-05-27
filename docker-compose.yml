@@ -19,11 +19,11 @@ services:
       - HTTP_PROXY=http://proxy:8080
       - HTTPS_PROXY=http://proxy:8080
       - ALL_PROXY=http://proxy:8080
-      - NO_PROXY=localhost,127.0.0.1,n8n,playwright,claim-controller,claim-controller-mock
+      - NO_PROXY=localhost,127.0.0.1,n8n,playwright,claim-controller,claim-controller-mock,claim-controller-mock:8080
       - http_proxy=http://proxy:8080
       - https_proxy=http://proxy:8080
       - all_proxy=http://proxy:8080
-      - no_proxy=localhost,127.0.0.1,n8n,playwright,claim-controller,claim-controller-mock
+      - no_proxy=localhost,127.0.0.1,n8n,playwright,claim-controller,claim-controller-mock,claim-controller-mock:8080
     develop:
       watch:
         - action: rebuild

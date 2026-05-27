@@ -15,6 +15,37 @@ import {
 	resolveSessionKey,
 } from './sessionStore';
 
+function resolveProxyTargetUrl(
+	executeFunctions: IExecuteFunctions,
+	operation: string,
+	itemIndex: number,
+): string | undefined {
+	if (operation === 'navigate') {
+		const url = executeFunctions.getNodeParameter('url', itemIndex, '') as string;
+		return url.trim() || undefined;
+	}
+
+	if (operation === 'downloadFile') {
+		const downloadSource = executeFunctions.getNodeParameter(
+			'downloadSource',
+			itemIndex,
+			'element',
+		) as string;
+
+		if (downloadSource === 'url') {
+			const downloadUrl = executeFunctions.getNodeParameter(
+				'downloadUrl',
+				itemIndex,
+				'',
+			) as string;
+
+			return downloadUrl.trim() || undefined;
+		}
+	}
+
+	return undefined;
+}
+
 export class Playwright implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Playwright',
@@ -728,12 +759,15 @@ return [{
 					);
 				}
 
+				const proxyTargetUrl = resolveProxyTargetUrl(this, operation, i);
+
 				const session = await getOrCreateSession(
 					playwright,
 					sessionKey,
 					browserEndpoint,
 					browserOptions.timeout || 30000,
 					browserType,
+					proxyTargetUrl,
 				);
 
 				if (operation === 'navigate') {

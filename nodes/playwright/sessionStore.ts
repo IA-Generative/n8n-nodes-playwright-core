@@ -38,16 +38,14 @@ export async function getOrCreateSession(
 	browserEndpoint: string,
 	timeout: number,
 	browserType: BrowserType = 'chromium',
+	proxyTargetUrl?: string,
 ): Promise<IStoredSession> {
-	const proxy = resolveProxyFromEnv();
-	const proxySignature = getProxySignature(proxy);
 	const existingSession = sessions.get(sessionKey);
 
 	if (
 		existingSession &&
 		isSessionUsable(existingSession) &&
-		existingSession.endpoint === browserEndpoint &&
-		existingSession.proxySignature === proxySignature
+		existingSession.endpoint === browserEndpoint
 	) {
 		existingSession.page = await ensurePage(
 			existingSession.browser,
@@ -64,6 +62,9 @@ export async function getOrCreateSession(
 			await existingSession.browser.close();
 		} catch {}
 	}
+
+	const proxy = resolveProxyFromEnv(proxyTargetUrl);
+	const proxySignature = getProxySignature(proxy);
 
 	const browser = await connectToBrowser(playwright, browserType, browserEndpoint, timeout);
 
@@ -129,22 +130,53 @@ async function createContext(browser: Browser, proxy: ProxyConfig | undefined): 
 	return browser.contexts()[0] || (await browser.newContext());
 }
 
-function resolveProxyFromEnv(): ProxyConfig | undefined {
-	const server =
-		getEnvValue('all_proxy', 'ALL_PROXY') ||
-		getEnvValue('https_proxy', 'HTTPS_PROXY') ||
-		getEnvValue('http_proxy', 'HTTP_PROXY');
+function resolveProxyFromEnv(proxyTargetUrl?: string): ProxyConfig | undefined {
+	const allProxy = getEnvValue('all_proxy', 'ALL_PROXY');
 
-	if (!server) {
+	if (allProxy) {
+		return buildProxyConfig(allProxy);
+	}
+
+	const protocol = getUrlProtocol(proxyTargetUrl);
+	const httpProxy = getEnvValue('http_proxy', 'HTTP_PROXY');
+	const httpsProxy = getEnvValue('https_proxy', 'HTTPS_PROXY');
+
+	if (protocol === 'http:' && httpProxy) {
+		return buildProxyConfig(httpProxy);
+	}
+
+	if (protocol === 'https:' && httpsProxy) {
+		return buildProxyConfig(httpsProxy);
+	}
+
+	const fallbackProxy = httpsProxy || httpProxy;
+
+	if (!fallbackProxy) {
 		return undefined;
 	}
 
+	return buildProxyConfig(fallbackProxy);
+}
+
+function buildProxyConfig(server: string): ProxyConfig {
 	const bypass = getEnvValue('no_proxy', 'NO_PROXY');
 
 	return {
 		server,
 		...(bypass ? { bypass } : {}),
 	};
+}
+
+function getUrlProtocol(rawUrl?: string): string | undefined {
+	if (!rawUrl) {
+		return undefined;
+	}
+
+	try {
+		return new URL(rawUrl).protocol;
+	} catch {
+		return undefined;
+	}
 }
 
 function getEnvValue(...names: string[]): string | undefined {

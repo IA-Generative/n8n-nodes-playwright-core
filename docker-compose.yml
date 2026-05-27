@@ -62,6 +62,12 @@ services:
       --ssl-insecure
       --set web_password=dev
 
+  claim:
+    image: node:22-alpine
+    command: node /app/server.js
+    volumes:
+      - ./claim-mock:/app
+
 volumes:
   n8n_data:
   n8n_cache:

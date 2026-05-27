@@ -5,7 +5,7 @@ import {
 	INodeTypeDescription,
 	NodeOperationError,
 } from 'n8n-workflow';
-import { handleClaimCreateInstance, handleOperation } from './operations';
+import { handleOperation } from './operations';
 import { runCustomScript } from './customScript';
 import { BrowserType, IBrowserOptions } from './types';
 import {
@@ -79,12 +79,6 @@ export class Playwright implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
-						name: 'Claim: Create Instance',
-						value: 'claimCreateInstance',
-						description: 'Create a remote Playwright instance from a claim controller',
-						action: 'Create a claimed playwright instance',
-					},
-					{
 						name: 'Click Element',
 						value: 'clickElement',
 						description: 'Click on an element',
@@ -156,7 +150,7 @@ export class Playwright implements INodeType {
 				default: 'firefox',
 				displayOptions: {
 					hide: {
-						operation: ['claimCreateInstance'],
+						operation: [],
 					},
 				},
 			},
@@ -169,7 +163,7 @@ export class Playwright implements INodeType {
 				description: 'Whether to keep the browser session open for the next Playwright node',
 				displayOptions: {
 					hide: {
-						operation: ['closeSession', 'claimCreateInstance'],
+						operation: ['closeSession'],
 					},
 				},
 			},
@@ -200,48 +194,6 @@ export class Playwright implements INodeType {
 				displayOptions: {
 					show: {
 						operation: ['closeSession'],
-					},
-				},
-			},
-
-			{
-				displayName: 'Claim Controller URL',
-				name: 'claimControllerUrl',
-				type: 'string',
-				default: '',
-				placeholder: 'http://claim-controller:3000',
-				description: 'Base URL of the claim controller. The node will call POST /claim.',
-				displayOptions: {
-					show: {
-						operation: ['claimCreateInstance'],
-					},
-				},
-				required: true,
-			},
-
-			{
-				displayName: 'TTL',
-				name: 'claimTtl',
-				type: 'string',
-				default: '3m',
-				description: 'Time to live requested for the claimed Playwright instance',
-				displayOptions: {
-					show: {
-						operation: ['claimCreateInstance'],
-					},
-				},
-				required: true,
-			},
-
-			{
-				displayName: 'Claim Timeout',
-				name: 'claimTimeout',
-				type: 'number',
-				default: 120000,
-				description: 'Maximum time to wait for the claim controller response in milliseconds',
-				displayOptions: {
-					show: {
-						operation: ['claimCreateInstance'],
 					},
 				},
 			},
@@ -617,7 +569,7 @@ return [{
 					'Remote browser endpoint used when a new session is created. Leave empty to reuse the endpoint from the previous Playwright node.',
 				displayOptions: {
 					hide: {
-						operation: ['closeSession', 'claimCreateInstance'],
+						operation: ['closeSession'],
 					},
 				},
 			},
@@ -630,7 +582,7 @@ return [{
 				default: {},
 				displayOptions: {
 					hide: {
-						operation: ['closeSession', 'claimCreateInstance'],
+						operation: ['closeSession'],
 					},
 				},
 				options: [
@@ -690,7 +642,7 @@ return [{
 				default: '',
 				displayOptions: {
 					hide: {
-						operation: ['claimCreateInstance'],
+						operation: [],
 					},
 				},
 			},
@@ -729,12 +681,6 @@ return [{
 						},
 					});
 
-					continue;
-				}
-
-				if (operation === 'claimCreateInstance') {
-					const result = await handleClaimCreateInstance(this, i);
-					returnData.push(result);
 					continue;
 				}
 

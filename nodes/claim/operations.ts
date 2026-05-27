@@ -60,18 +60,73 @@ function joinUrl(baseUrl: string, path: string): string {
 	return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
-function extractClaimFqdn(responseBody: unknown): string | undefined {
-	if (!responseBody || typeof responseBody !== 'object') {
-		return undefined;
-	}
+interface ClaimCreateResponse {
+	data?: { fqdn?: unknown };
+	id?: unknown;
+	expiresAt?: unknown;
+	preProvisioned?: unknown;
+	releaseMethod?: unknown;
+	releasePath?: unknown;
+	renewMethod?: unknown;
+	renewPath?: unknown;
+	status?: unknown;
+}
 
-	const body = responseBody as {
-		data?: {
-			fqdn?: unknown;
-		};
+function extractClaimCreateResponse(body: unknown): {
+	fqdn: string;
+	id: string;
+	expiresAt: string | undefined;
+	preProvisioned: boolean | undefined;
+	releaseMethod: string | undefined;
+	releasePath: string | undefined;
+	renewMethod: string | undefined;
+	renewPath: string | undefined;
+	status: string | undefined;
+} | undefined {
+	if (!body || typeof body !== 'object') return undefined;
+
+	const r = body as ClaimCreateResponse;
+	const fqdn = typeof r.data?.fqdn === 'string' ? r.data.fqdn.trim() : undefined;
+	const id = typeof r.id === 'string' ? r.id.trim() : undefined;
+
+	if (!fqdn || !id) return undefined;
+
+	return {
+		fqdn,
+		id,
+		expiresAt: typeof r.expiresAt === 'string' ? r.expiresAt : undefined,
+		preProvisioned: typeof r.preProvisioned === 'boolean' ? r.preProvisioned : undefined,
+		releaseMethod: typeof r.releaseMethod === 'string' ? r.releaseMethod : undefined,
+		releasePath: typeof r.releasePath === 'string' ? r.releasePath : undefined,
+		renewMethod: typeof r.renewMethod === 'string' ? r.renewMethod : undefined,
+		renewPath: typeof r.renewPath === 'string' ? r.renewPath : undefined,
+		status: typeof r.status === 'string' ? r.status : undefined,
 	};
+}
 
-	return typeof body.data?.fqdn === 'string' ? body.data.fqdn.trim() : undefined;
+async function callClaimController(
+	executeFunctions: IExecuteFunctions,
+	itemIndex: number,
+	url: string,
+	method: string,
+	body: Record<string, unknown> | undefined,
+	timeout: number,
+): Promise<Response> {
+	try {
+		return await fetch(url, {
+			method,
+			headers: { 'Content-Type': 'application/json' },
+			body: body !== undefined ? JSON.stringify(body) : undefined,
+			signal: AbortSignal.timeout(timeout),
+		});
+	} catch (error: any) {
+		const causeMessage = error.cause?.message || error.cause?.code || error.message;
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			`Failed to call claim controller: ${causeMessage}`,
+			{ itemIndex },
+		);
+	}
 }
 
 export async function handleClaimCreateInstance(
@@ -97,25 +152,21 @@ export async function handleClaimCreateInstance(
 	}
 
 	const claimSessionId = buildClaimSessionId(executeFunctions);
-	const headers = {
-		'Content-Type': 'application/json',
-		'X-Session-ID': claimSessionId,
-	};
 
-	let response: Awaited<ReturnType<typeof fetch>>;
+	let response: Response;
 
 	try {
 		response = await fetch(joinUrl(claimControllerUrl, '/claim'), {
 			method: 'POST',
-			headers,
-			body: JSON.stringify({
-				TTL: ttl,
-			}),
+			headers: {
+				'Content-Type': 'application/json',
+				'X-Session-ID': claimSessionId,
+			},
+			body: JSON.stringify({ ttl }),
 			signal: AbortSignal.timeout(timeout),
 		});
 	} catch (error: any) {
 		const causeMessage = error.cause?.message || error.cause?.code || error.message;
-
 		throw new NodeOperationError(
 			executeFunctions.getNode(),
 			`Failed to call claim controller: ${causeMessage}`,
@@ -143,22 +194,165 @@ export async function handleClaimCreateInstance(
 		);
 	}
 
-	const fqdn = extractClaimFqdn(responseBody);
+	const parsed = extractClaimCreateResponse(responseBody);
 
-	if (!fqdn) {
+	if (!parsed) {
 		throw new NodeOperationError(
 			executeFunctions.getNode(),
-			'Claim controller response does not contain data.fqdn',
+			'Claim controller response does not contain required fields (data.fqdn, id)',
 			{ itemIndex },
 		);
 	}
 
 	return {
 		json: {
-			browserEndpoint: `ws://${fqdn}`,
+			browserEndpoint: `ws://${parsed.fqdn}`,
+			claimId: parsed.id,
+			claimControllerUrl,
+			expiresAt: parsed.expiresAt,
+			preProvisioned: parsed.preProvisioned,
+			releaseMethod: parsed.releaseMethod,
+			releasePath: parsed.releasePath,
+			renewMethod: parsed.renewMethod,
+			renewPath: parsed.renewPath,
+			status: parsed.status,
 		},
-		pairedItem: {
-			item: itemIndex,
+		pairedItem: { item: itemIndex },
+	};
+}
+
+export async function handleRenewClaim(
+	executeFunctions: IExecuteFunctions,
+	itemIndex: number,
+): Promise<INodeExecutionData> {
+	const claimControllerUrl = (
+		executeFunctions.getNodeParameter('claimControllerUrl', itemIndex) as string
+	).trim();
+	const claimId = (
+		executeFunctions.getNodeParameter('claimId', itemIndex) as string
+	).trim();
+	const ttl = (executeFunctions.getNodeParameter('claimTtl', itemIndex) as string).trim();
+	const timeout = executeFunctions.getNodeParameter('claimTimeout', itemIndex, 120000) as number;
+
+	if (!claimControllerUrl) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'Claim Controller URL is required', {
+			itemIndex,
+		});
+	}
+
+	if (!claimId) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'Claim ID is required', {
+			itemIndex,
+		});
+	}
+
+	if (!ttl) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'TTL is required', { itemIndex });
+	}
+
+	const response = await callClaimController(
+		executeFunctions,
+		itemIndex,
+		joinUrl(claimControllerUrl, `/renew/${claimId}`),
+		'POST',
+		{ ttl },
+		timeout,
+	);
+
+	if (!response.ok) {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			`Claim controller returned HTTP ${response.status}`,
+			{ itemIndex },
+		);
+	}
+
+	let responseBody: unknown;
+
+	try {
+		responseBody = await response.json();
+	} catch {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			'Claim controller response is not valid JSON',
+			{ itemIndex },
+		);
+	}
+
+	const r = responseBody as {
+		expiresAt?: string;
+		id?: string;
+		renewMethod?: string;
+		renewPath?: string;
+		status?: string;
+	};
+
+	return {
+		json: {
+			claimId: r.id ?? claimId,
+			claimControllerUrl,
+			expiresAt: r.expiresAt,
+			renewMethod: r.renewMethod,
+			renewPath: r.renewPath,
+			status: r.status,
 		},
+		pairedItem: { item: itemIndex },
+	};
+}
+
+export async function handleReleaseClaim(
+	executeFunctions: IExecuteFunctions,
+	itemIndex: number,
+): Promise<INodeExecutionData> {
+	const claimControllerUrl = (
+		executeFunctions.getNodeParameter('claimControllerUrl', itemIndex) as string
+	).trim();
+	const claimId = (
+		executeFunctions.getNodeParameter('claimId', itemIndex) as string
+	).trim();
+	const timeout = executeFunctions.getNodeParameter('claimTimeout', itemIndex, 120000) as number;
+
+	if (!claimControllerUrl) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'Claim Controller URL is required', {
+			itemIndex,
+		});
+	}
+
+	if (!claimId) {
+		throw new NodeOperationError(executeFunctions.getNode(), 'Claim ID is required', {
+			itemIndex,
+		});
+	}
+
+	const response = await callClaimController(
+		executeFunctions,
+		itemIndex,
+		joinUrl(claimControllerUrl, `/release/${claimId}`),
+		'POST',
+		undefined,
+		timeout,
+	);
+
+	if (!response.ok) {
+		throw new NodeOperationError(
+			executeFunctions.getNode(),
+			`Claim controller returned HTTP ${response.status}`,
+			{ itemIndex },
+		);
+	}
+
+	// Body is {} — consume and ignore
+	try {
+		await response.json();
+	} catch {
+		// silently ignore parse errors on empty/missing body
+	}
+
+	return {
+		json: {
+			claimId,
+			released: true,
+		},
+		pairedItem: { item: itemIndex },
 	};
 }

@@ -4,7 +4,11 @@ import {
 	IExecuteFunctions,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { handleClaimCreateInstance } from './operations';
+import {
+	handleClaimCreateInstance,
+	handleRenewClaim,
+	handleReleaseClaim,
+} from './operations';
 
 
 export class Claim implements INodeType {
@@ -33,7 +37,19 @@ export class Claim implements INodeType {
 						value: 'claimCreateInstance',
 						description: 'Create a remote Playwright instance from a claim controller',
 						action: 'Create a claimed playwright instance',
-					}
+					},
+					{
+						name: 'Renew Claim',
+						value: 'renewClaim',
+						description: 'Extend the TTL of an existing claim',
+						action: 'Renew a claim TTL',
+					},
+					{
+						name: 'Release Claim',
+						value: 'releaseClaim',
+						description: 'Release (close) an existing claim',
+						action: 'Release a claim',
+					},
 				],
 				default: 'claimCreateInstance',
 			},
@@ -42,11 +58,25 @@ export class Claim implements INodeType {
 				name: 'claimControllerUrl',
 				type: 'string',
 				default: '',
-				placeholder: 'http://claim-controller:3000',
-				description: 'Base URL of the claim controller. The node will call POST /claim.',
+				placeholder: 'http://claim-controller:8080',
+				description: 'Base URL of the claim controller',
 				displayOptions: {
 					show: {
-						operation: ['claimCreateInstance'],
+						operation: ['claimCreateInstance', 'renewClaim', 'releaseClaim'],
+					},
+				},
+				required: true,
+			},
+			{
+				displayName: 'Claim ID',
+				name: 'claimId',
+				type: 'string',
+				default: '',
+				placeholder: '={{ $json.claimId }}',
+				description: 'ID of the claim to renew or release (propagated from a previous Claim node)',
+				displayOptions: {
+					show: {
+						operation: ['renewClaim', 'releaseClaim'],
 					},
 				},
 				required: true,
@@ -56,10 +86,10 @@ export class Claim implements INodeType {
 				name: 'claimTtl',
 				type: 'string',
 				default: '3m',
-				description: 'Time to live requested for the claimed Playwright instance',
+				description: 'Time to live for the claim (e.g. 3m, 10m)',
 				displayOptions: {
 					show: {
-						operation: ['claimCreateInstance'],
+						operation: ['claimCreateInstance', 'renewClaim'],
 					},
 				},
 				required: true,
@@ -72,7 +102,7 @@ export class Claim implements INodeType {
 				description: 'Maximum time to wait for the claim controller response in milliseconds',
 				displayOptions: {
 					show: {
-						operation: ['claimCreateInstance'],
+						operation: ['claimCreateInstance', 'renewClaim', 'releaseClaim'],
 					},
 				},
 			},
@@ -87,7 +117,7 @@ export class Claim implements INodeType {
 					'Remote browser endpoint used when a new session is created. Leave empty to reuse the endpoint from the previous Playwright node.',
 				displayOptions: {
 					hide: {
-						operation: ['claimCreateInstance'],
+						operation: ['claimCreateInstance', 'renewClaim', 'releaseClaim'],
 					},
 				},
 			},
@@ -100,7 +130,7 @@ export class Claim implements INodeType {
 				default: {},
 				displayOptions: {
 					hide: {
-						operation: ['claimCreateInstance'],
+						operation: ['claimCreateInstance', 'renewClaim', 'releaseClaim'],
 					},
 				},
 				options: [
@@ -131,7 +161,7 @@ export class Claim implements INodeType {
 				default: '',
 				displayOptions: {
 					hide: {
-						operation: ['claimCreateInstance'],
+						operation: ['claimCreateInstance', 'renewClaim', 'releaseClaim'],
 					},
 				},
 			},
@@ -147,8 +177,17 @@ export class Claim implements INodeType {
 
 			try {
 				if (operation === 'claimCreateInstance') {
-					const result = await handleClaimCreateInstance(this, i);
-					returnData.push(result);
+					returnData.push(await handleClaimCreateInstance(this, i));
+					continue;
+				}
+
+				if (operation === 'renewClaim') {
+					returnData.push(await handleRenewClaim(this, i));
+					continue;
+				}
+
+				if (operation === 'releaseClaim') {
+					returnData.push(await handleReleaseClaim(this, i));
 					continue;
 				}
 
@@ -156,7 +195,7 @@ export class Claim implements INodeType {
 				if (this.continueOnFail()) {
 					returnData.push({
 						json: {
-							error: error.message
+							error: error.message,
 						},
 						pairedItem: {
 							item: i,

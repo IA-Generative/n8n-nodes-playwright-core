@@ -124,7 +124,7 @@ export class Playwright implements INodeType {
 						name: 'Take Screenshot',
 						value: 'takeScreenshot',
 						description: 'Take a screenshot of the current page',
-						action: 'Take a screenshot of the current page',
+						action: 'Take a screenshot',
 					},
 				],
 				default: 'navigate',
@@ -594,6 +594,14 @@ return [{
 						description: 'Connection timeout in milliseconds',
 					},
 					{
+						displayName: 'Ignore HTTPS Errors',
+						name: 'ignoreHTTPSErrors',
+						type: 'boolean',
+						default: false,
+						description:
+							'Whether to ignore all HTTPS certificate errors for the browser session. Enable only for trusted environments.',
+					},
+					{
 						displayName: 'Session ID',
 						name: 'sessionId',
 						type: 'string',
@@ -714,6 +722,7 @@ return [{
 					browserOptions.timeout || 30000,
 					browserType,
 					proxyTargetUrl,
+					browserOptions.ignoreHTTPSErrors,
 				);
 
 				if (operation === 'navigate') {
@@ -725,6 +734,7 @@ return [{
 
 				if (operation === 'runCustomScript') {
 					result = await runCustomScript(this, i, session.browser, session.page, playwright);
+
 					for (const item of result as INodeExecutionData[]) {
 						item.json.playwright = {
 							...((item.json.playwright as object) ?? {}),
@@ -732,14 +742,17 @@ return [{
 							browserEndpoint,
 						};
 					}
+
 					returnData.push(...result);
 				} else {
 					result = await handleOperation(operation, session.page, this, i);
+
 					(result as INodeExecutionData).json.playwright = {
 						...(((result as INodeExecutionData).json.playwright as object) ?? {}),
 						sessionKey,
 						browserEndpoint,
 					};
+
 					returnData.push(result as INodeExecutionData);
 				}
 
@@ -757,6 +770,7 @@ return [{
 							item: i,
 						},
 					});
+
 					continue;
 				}
 

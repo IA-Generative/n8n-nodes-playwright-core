@@ -1,6 +1,7 @@
 export interface IBrowserOptions {
 	timeout?: number;
 	sessionId?: string;
+	ignoreHTTPSErrors?: boolean;
 }
 
 export interface IScreenshotOptions {

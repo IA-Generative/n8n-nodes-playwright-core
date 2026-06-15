@@ -14,6 +14,7 @@ import {
 	getSessionEndpoint,
 	resolveSessionKey,
 } from './sessionStore';
+import { resolveAndAssertAllowedUrl } from './protocols';
 
 function resolveProxyTargetUrl(
 	executeFunctions: IExecuteFunctions,
@@ -594,7 +595,7 @@ return [{
 						description: 'Connection timeout in milliseconds',
 					},
 					{
-						displayName: 'Ignore HTTPS Errors',
+						displayName: 'Ignore SSL Issues (Insecure)',
 						name: 'ignoreHTTPSErrors',
 						type: 'boolean',
 						default: false,
@@ -726,7 +727,9 @@ return [{
 				);
 
 				if (operation === 'navigate') {
-					const url = this.getNodeParameter('url', i) as string;
+					const rawUrl = this.getNodeParameter('url', i) as string;
+					const url = resolveAndAssertAllowedUrl(rawUrl);
+
 					await session.page.goto(url);
 				}
 

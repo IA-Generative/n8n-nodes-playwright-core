@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import type { BrowserType } from './types';
+import { installProtocolGuard } from './protocols';
 
 type PlaywrightModule = typeof import('playwright-core');
 
@@ -81,6 +82,8 @@ export async function getOrCreateSession(
 	});
 
 	const context = await createContext(browser, proxy, ignoreHTTPSErrors);
+	await installProtocolGuard(context);
+
 	const page = context.pages()[0] || (await context.newPage());
 
 	const session: IStoredSession = {

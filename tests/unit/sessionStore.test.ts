@@ -22,6 +22,11 @@ function createFakeContext({
 	pages?: Array<{ isClosed: () => boolean }>;
 	isClosed?: boolean;
 } = {}) {
+	const routeCalls: Array<{
+		url: string;
+		handler: (...args: any[]) => Promise<void>;
+	}> = [];
+
 	return {
 		pages() {
 			return pages;
@@ -31,8 +36,14 @@ function createFakeContext({
 			pages.push(page);
 			return page;
 		},
+		async route(url: string, handler: (...args: any[]) => Promise<void>) {
+			routeCalls.push({ url, handler });
+		},
 		isClosed() {
 			return isClosed;
+		},
+		getRouteCalls() {
+			return routeCalls;
 		},
 	};
 }
@@ -118,7 +129,8 @@ test('resolveSessionKey generates a value when both ids are empty', () => {
 });
 
 test('getOrCreateSession creates a new session and stores endpoint', async () => {
-	const browser = createFakeBrowser();
+	const context = createFakeContext();
+	const browser = createFakeBrowser({ contexts: [context] });
 	const playwright = createFakePlaywright(browser);
 
 	const session = await getOrCreateSession(
@@ -135,6 +147,8 @@ test('getOrCreateSession creates a new session and stores endpoint', async () =>
 	assert.ok(session.browser);
 	assert.ok(session.context);
 	assert.ok(session.page);
+	assert.equal(context.getRouteCalls().length, 1);
+	assert.equal(context.getRouteCalls()[0].url, '**/*');
 
 	await closeSession('session-a');
 });
@@ -201,6 +215,10 @@ test('getOrCreateSession reuses existing usable session', async () => {
 		true,
 	);
 
+	const context = browser.contexts().at(-1);
+
+	assert.ok(context);
+
 	const second = await getOrCreateSession(
 		playwright as any,
 		'session-b',
@@ -214,6 +232,7 @@ test('getOrCreateSession reuses existing usable session', async () => {
 	assert.equal(second.page, first.page);
 	assert.equal(second.ignoreHTTPSErrors, true);
 	assert.equal(browser.getNewContextCalls().length, 1);
+	assert.equal(context.getRouteCalls().length, 1);
 
 	await closeSession('session-b');
 });

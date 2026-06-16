@@ -22,6 +22,11 @@ function createFakeContext({
 	pages?: Array<{ isClosed: () => boolean }>;
 	isClosed?: boolean;
 } = {}) {
+	const routeCalls: Array<{
+		url: string;
+		handler: (...args: any[]) => Promise<void>;
+	}> = [];
+
 	return {
 		pages() {
 			return pages;
@@ -31,8 +36,14 @@ function createFakeContext({
 			pages.push(page);
 			return page;
 		},
+		async route(url: string, handler: (...args: any[]) => Promise<void>) {
+			routeCalls.push({ url, handler });
+		},
 		isClosed() {
 			return isClosed;
+		},
+		getRouteCalls() {
+			return routeCalls;
 		},
 	};
 }
@@ -46,15 +57,19 @@ function createFakeBrowser({
 } = {}) {
 	const handlers = new Map<string, () => void>();
 	const browserContexts = contexts ?? [createFakeContext()];
+	const newContextCalls: Array<Record<string, unknown> | undefined> = [];
 	let closed = false;
 
 	return {
 		contexts() {
 			return browserContexts;
 		},
-		async newContext() {
+		async newContext(options?: Record<string, unknown>) {
+			newContextCalls.push(options);
+
 			const context = createFakeContext();
 			browserContexts.push(context);
+
 			return context;
 		},
 		on(event: string, handler: () => void) {
@@ -68,7 +83,13 @@ function createFakeBrowser({
 		},
 		emit(event: string) {
 			const handler = handlers.get(event);
-			if (handler) handler();
+
+			if (handler) {
+				handler();
+			}
+		},
+		getNewContextCalls() {
+			return newContextCalls;
 		},
 	};
 }
@@ -76,12 +97,12 @@ function createFakeBrowser({
 function createFakePlaywright(browser: ReturnType<typeof createFakeBrowser>) {
 	return {
 		chromium: {
-			async connect(endpoint: string, options: { timeout: number }) {
+			async connect(_endpoint: string, _options: { timeout: number }) {
 				return browser;
 			},
 		},
 		firefox: {
-			async connect(endpoint: string, options: { timeout: number }) {
+			async connect(_endpoint: string, _options: { timeout: number }) {
 				return browser;
 			},
 		},
@@ -90,22 +111,26 @@ function createFakePlaywright(browser: ReturnType<typeof createFakeBrowser>) {
 
 test('resolveSessionKey returns explicit session id first', () => {
 	const result = resolveSessionKey('my-session', 'propagated-session');
+
 	assert.equal(result, 'my-session');
 });
 
 test('resolveSessionKey falls back to propagated session id', () => {
 	const result = resolveSessionKey('   ', 'propagated-session');
+
 	assert.equal(result, 'propagated-session');
 });
 
 test('resolveSessionKey generates a value when both ids are empty', () => {
 	const result = resolveSessionKey('', '');
+
 	assert.equal(typeof result, 'string');
 	assert.ok(result.length > 0);
 });
 
 test('getOrCreateSession creates a new session and stores endpoint', async () => {
-	const browser = createFakeBrowser();
+	const context = createFakeContext();
+	const browser = createFakeBrowser({ contexts: [context] });
 	const playwright = createFakePlaywright(browser);
 
 	const session = await getOrCreateSession(
@@ -117,12 +142,63 @@ test('getOrCreateSession creates a new session and stores endpoint', async () =>
 	);
 
 	assert.equal(session.endpoint, 'ws://playwright:3000');
+	assert.equal(session.ignoreHTTPSErrors, false);
 	assert.equal(getSessionEndpoint('session-a'), 'ws://playwright:3000');
 	assert.ok(session.browser);
 	assert.ok(session.context);
 	assert.ok(session.page);
+	assert.equal(context.getRouteCalls().length, 1);
+	assert.equal(context.getRouteCalls()[0].url, '**/*');
 
 	await closeSession('session-a');
+});
+
+test('getOrCreateSession passes ignoreHTTPSErrors to the new browser context', async () => {
+	const browser = createFakeBrowser();
+	const playwright = createFakePlaywright(browser);
+
+	const session = await getOrCreateSession(
+		playwright as any,
+		'session-tls-enabled',
+		'ws://playwright:3000',
+		30000,
+		'chromium',
+		undefined,
+		true,
+	);
+
+	assert.equal(session.ignoreHTTPSErrors, true);
+	assert.deepEqual(browser.getNewContextCalls(), [
+		{
+			ignoreHTTPSErrors: true,
+		},
+	]);
+
+	await closeSession('session-tls-enabled');
+});
+
+test('getOrCreateSession passes an explicit false value to the new browser context', async () => {
+	const browser = createFakeBrowser();
+	const playwright = createFakePlaywright(browser);
+
+	const session = await getOrCreateSession(
+		playwright as any,
+		'session-tls-disabled',
+		'ws://playwright:3000',
+		30000,
+		'chromium',
+		undefined,
+		false,
+	);
+
+	assert.equal(session.ignoreHTTPSErrors, false);
+	assert.deepEqual(browser.getNewContextCalls(), [
+		{
+			ignoreHTTPSErrors: false,
+		},
+	]);
+
+	await closeSession('session-tls-disabled');
 });
 
 test('getOrCreateSession reuses existing usable session', async () => {
@@ -135,7 +211,13 @@ test('getOrCreateSession reuses existing usable session', async () => {
 		'ws://playwright:3000',
 		30000,
 		'chromium',
+		undefined,
+		true,
 	);
+
+	const context = browser.contexts().at(-1);
+
+	assert.ok(context);
 
 	const second = await getOrCreateSession(
 		playwright as any,
@@ -148,12 +230,47 @@ test('getOrCreateSession reuses existing usable session', async () => {
 	assert.equal(second.browser, first.browser);
 	assert.equal(second.context, first.context);
 	assert.equal(second.page, first.page);
+	assert.equal(second.ignoreHTTPSErrors, true);
+	assert.equal(browser.getNewContextCalls().length, 1);
+	assert.equal(context.getRouteCalls().length, 1);
 
 	await closeSession('session-b');
 });
 
+test('getOrCreateSession rejects conflicting TLS options for an existing session', async () => {
+	const browser = createFakeBrowser();
+	const playwright = createFakePlaywright(browser);
+
+	await getOrCreateSession(
+		playwright as any,
+		'session-tls-conflict',
+		'ws://playwright:3000',
+		30000,
+		'chromium',
+		undefined,
+		true,
+	);
+
+	await assert.rejects(
+		() =>
+			getOrCreateSession(
+				playwright as any,
+				'session-tls-conflict',
+				'ws://playwright:3000',
+				30000,
+				'chromium',
+				undefined,
+				false,
+			),
+		/session-tls-conflict.*ignoreHTTPSErrors=true/,
+	);
+
+	await closeSession('session-tls-conflict');
+});
+
 test('closeSession returns false when session does not exist', async () => {
 	const result = await closeSession('missing-session');
+
 	assert.equal(result, false);
 });
 

@@ -6,10 +6,13 @@ This is an n8n community node. It lets you automate browser actions in your n8n 
 
 [Operations](#operations)
 [Sessions](#sessions)
+[Browser connection options](#browser-connection-options)
 [File Downloads](#file-downloads)
+[Protocol restrictions](#protocol-restrictions)
 [Custom Scripts](#custom-scripts)
 [Remote browser server](#remote-browser-server)
 [Installation](#installation)
+[Development and tests](#development-and-tests)
 [Compatibility](#compatibility)
 [Resources](#resources)
 [Version history](#version-history)
@@ -80,6 +83,35 @@ New sessions connect to the remote browser using a **Playwright WebSocket** endp
 4. Download a file
 5. Close the session explicitly
 
+## Browser connection options
+
+### Connection timeout
+
+The connection timeout controls how long the node waits when connecting to the remote Playwright server.
+
+The default value is `30000` milliseconds.
+
+### Session ID
+
+A custom session ID can be used to reuse a specific browser session across multiple Playwright nodes.
+
+When no explicit session ID is provided, the node first tries to reuse the session propagated by the previous Playwright node. If none is available, it generates a random UUID.
+
+### Ignore HTTPS errors
+
+The **Ignore HTTPS Errors** option allows the browser context to ignore TLS certificate errors such as:
+
+* Self-signed certificates
+* Certificates issued by an unknown authority
+* Invalid or incomplete certificate chains
+* Expired certificates
+
+The option is disabled by default.
+
+Enable it only when accessing trusted environments whose certificates cannot be recognized by the Playwright browser infrastructure.
+
+The option is applied when the browser context is created. It cannot be changed on an existing session. To use a different value, close the current session or use a different session ID.
+
 ## File Downloads
 
 The **Download File** operation supports two download modes.
@@ -99,12 +131,67 @@ This is useful for flows where clicking a link or button triggers a document dow
 
 The node can also fetch a file directly from a provided URL.
 
-When needed, it can resolve relative URLs against the current page and try both:
+When needed, it can resolve relative URLs against the current page and try:
 
 * In-page browser fetch with credentials
 * Direct request through the Playwright request context
+* Node.js fetch as a fallback
 
 Downloaded files are returned as n8n binary data under the configured binary property name.
+
+## Protocol restrictions
+
+For security reasons, the node only allows the following protocols by default:
+
+* `http`
+* `https`
+
+This restriction prevents workflows from using protocols such as `file://` to access files stored on the remote Playwright server or its container.
+
+The restriction applies to:
+
+* URLs provided to the **Navigate** operation
+* Direct URLs provided to the **Download File** operation
+* URLs resolved from element links
+* Redirects and browser navigations
+* Form submissions
+* Popups opened inside the managed browser context
+
+### Allowing additional protocols
+
+Administrators can explicitly allow additional protocols with the following n8n environment variable:
+
+```yaml
+- N8N_PLAYWRIGHT_NODE_PROTOCOLS=[]
+```
+
+The value must be a valid JSON array.
+
+An empty array keeps the secure default and does not add any protocol:
+
+```yaml
+- N8N_PLAYWRIGHT_NODE_PROTOCOLS=[]
+```
+
+To allow `file://` explicitly:
+
+```yaml
+- N8N_PLAYWRIGHT_NODE_PROTOCOLS=["file"]
+```
+
+Multiple additional protocols can be configured:
+
+```yaml
+- N8N_PLAYWRIGHT_NODE_PROTOCOLS=["file","ftp"]
+```
+
+`http` and `https` are always allowed and do not need to be included in the variable.
+
+Protocol names are case-insensitive and may optionally contain a trailing colon.
+
+> ⚠️ Allowing `file` gives workflows access to files visible from the remote Playwright browser environment. Enable it only when this behavior is explicitly required and the workflow authors are trusted.
+
+Browser-internal protocols such as `about:`, `blob:`, `data:`, and `chrome-extension:` may be allowed internally when required for normal browser behavior. They are not accepted as user-provided operation URLs unless explicitly configured.
 
 ## Custom Scripts
 
@@ -129,6 +216,9 @@ Your script can access:
 * Binary data can be created with `$helpers.prepareBinaryData()`
 * `console.log()` output is available in manual executions
 * The script runs in a sandboxed VM environment
+* Custom scripts have access to raw Playwright objects and must only be available to trusted workflow authors
+
+The protocol restrictions protect the browser context managed by the node, but they must not be treated as a complete sandbox boundary for arbitrary custom Playwright code.
 
 ### Example
 
@@ -190,7 +280,7 @@ services:
     environment:
       - N8N_COMMUNITY_PACKAGES_ENABLED=true
       - N8N_CUSTOM_EXTENSIONS=/opt/custom-nodes
-      # ...
+      - N8N_PLAYWRIGHT_NODE_PROTOCOLS=[]
 
   playwright:
     image: ghcr.io/ia-generative/playwright:v1.58.2-jammy-browsers
@@ -206,13 +296,13 @@ Start the full stack with:
 docker compose up
 ```
 
-In your n8n Playwright node credentials, set the browser endpoint to:
+In your n8n Playwright node, set the browser endpoint to:
 
 ```text
 ws://playwright:3000
 ```
 
-The `playwright` hostname resolves automatically via Docker Compose's internal network.
+The `playwright` hostname resolves automatically through Docker Compose's internal network.
 
 ### Using a pre-built image
 
@@ -235,7 +325,7 @@ playwright:
 
 The companion repository [IA-Generative/n8n-image](https://github.com/IA-Generative/n8n-image) provides production-ready Docker images for the full stack:
 
-* `n8n-image/playwright/` — the Dockerfile for the remote Playwright browser server (mirrors `Dockerfile-playwright` in this repo)
+* `n8n-image/playwright/` — the Dockerfile for the remote Playwright browser server, mirroring `Dockerfile-playwright` in this repository
 * `n8n-image/nodes/` — the package manifest that pins this node (`n8n-nodes-playwright-core`) as a dependency of the n8n image
 
 > ⚠️ **Version parity is required.** The version of `playwright-core` declared in this package **must match** the Playwright version used in `n8n-image/playwright/Dockerfile`. Any mismatch between the two repositories will cause connection or protocol errors at runtime.
@@ -248,7 +338,11 @@ When upgrading `playwright-core` in this package, the corresponding Playwright v
 
 ```bash
 npm install n8n-nodes-playwright-core
-# or
+```
+
+Or:
+
+```bash
 pnpm install n8n-nodes-playwright-core
 ```
 
@@ -272,6 +366,51 @@ Then build the image:
 docker build -t my-n8n .
 ```
 
+## Development and tests
+
+Install dependencies and build the project:
+
+```bash
+pnpm install
+pnpm run build
+```
+
+Run linting:
+
+```bash
+pnpm run lint
+```
+
+Run unit tests:
+
+```bash
+pnpm test
+```
+
+### Integration tests
+
+The integration tests require the Docker Compose stack, including the remote Playwright server, to be running:
+
+```bash
+docker compose up --build
+```
+
+The tests start an HTTP server on the host machine. The remote Playwright container must reach that server through the current Docker network gateway.
+
+Run the integration tests with the gateway detected dynamically:
+
+```bash
+PLAYWRIGHT_TEST_HOST="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}' "$(docker compose ps -q playwright)")" pnpm run test:integration
+```
+
+Using the dynamic gateway avoids relying on a Docker network address that may change after recreating the stack.
+
+Run all unit and integration tests in environments where the required services are available:
+
+```bash
+pnpm run test:ci
+```
+
 ## Compatibility
 
 This node requires:
@@ -289,7 +428,7 @@ This node uses `playwright-core` **1.58.2**.
 
 > ⚠️ **The version of `playwright-core` used by this node must match the version of Playwright installed on your remote browser server.**
 >
-> A version mismatch between the client (this node) and the server (your browser endpoint) can cause connection failures, protocol errors, or unpredictable behavior. Always ensure both sides run the same Playwright version.
+> A version mismatch between the client and the server can cause connection failures, protocol errors, or unpredictable behavior. Always ensure both sides run the same Playwright version.
 
 If you are building your own remote browser Docker image, pin the Playwright version explicitly:
 
@@ -312,6 +451,13 @@ npm install playwright@1.58.2
 
 ## Version history
 
+### 1.2.0
+
+* Added an **Ignore HTTPS Errors** browser connection option for trusted environments using unrecognized TLS certificates
+* Restricted user-provided URLs to `http` and `https` by default
+* Added `N8N_PLAYWRIGHT_NODE_PROTOCOLS` to explicitly allow additional protocols
+* Added protocol validation for navigation, downloads, element links, redirects, form submissions, and popups
+
 ### 1.0.0
 
 Changes since `0.1.0`:
@@ -329,7 +475,7 @@ Initial public version of this fork.
 
 Main changes compared with the original upstream project:
 
-* Migrated to `playwright-core` (no local browser binaries)
+* Migrated to `playwright-core` with no local browser binaries
 * Switched to a remote WebSocket-based browser connection model
 * Added reusable session support with automatic key propagation across nodes
 * Sessions are stored in memory and cleaned up automatically on browser disconnect

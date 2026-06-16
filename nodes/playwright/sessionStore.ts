@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import type { BrowserType } from './types';
+import { installProtocolGuard } from './protocols';
 
 type PlaywrightModule = typeof import('playwright-core');
 
@@ -15,6 +16,7 @@ interface IStoredSession {
 	page: Page;
 	endpoint: string;
 	proxySignature: string;
+	ignoreHTTPSErrors: boolean;
 }
 
 const sessions = new Map<string, IStoredSession>();
@@ -39,6 +41,7 @@ export async function getOrCreateSession(
 	timeout: number,
 	browserType: BrowserType = 'chromium',
 	proxyTargetUrl?: string,
+	ignoreHTTPSErrors?: boolean,
 ): Promise<IStoredSession> {
 	const existingSession = sessions.get(sessionKey);
 
@@ -47,11 +50,17 @@ export async function getOrCreateSession(
 		isSessionUsable(existingSession) &&
 		existingSession.endpoint === browserEndpoint
 	) {
-		existingSession.page = await ensurePage(
-			existingSession.browser,
-			existingSession.context,
-			existingSession.page,
-		);
+		if (
+			ignoreHTTPSErrors !== undefined &&
+			existingSession.ignoreHTTPSErrors !== ignoreHTTPSErrors
+		) {
+			throw new Error(
+				`Session "${sessionKey}" already exists with ignoreHTTPSErrors=${existingSession.ignoreHTTPSErrors}. Close the session or use a different session ID.`,
+			);
+		}
+
+		existingSession.page = await ensurePage(existingSession.context, existingSession.page);
+
 		return existingSession;
 	}
 
@@ -60,7 +69,7 @@ export async function getOrCreateSession(
 
 		try {
 			await existingSession.browser.close();
-		} catch {}
+		} catch { }
 	}
 
 	const proxy = resolveProxyFromEnv(proxyTargetUrl);
@@ -72,7 +81,9 @@ export async function getOrCreateSession(
 		sessions.delete(sessionKey);
 	});
 
-	const context = await createContext(browser, proxy);
+	const context = await createContext(browser, proxy, ignoreHTTPSErrors);
+	await installProtocolGuard(context);
+
 	const page = context.pages()[0] || (await context.newPage());
 
 	const session: IStoredSession = {
@@ -81,6 +92,7 @@ export async function getOrCreateSession(
 		page,
 		endpoint: browserEndpoint,
 		proxySignature,
+		ignoreHTTPSErrors: ignoreHTTPSErrors ?? false,
 	};
 
 	sessions.set(sessionKey, session);
@@ -120,10 +132,15 @@ async function connectToBrowser(
 	return playwrightBrowser.connect(browserEndpoint, { timeout });
 }
 
-async function createContext(browser: Browser, proxy: ProxyConfig | undefined): Promise<BrowserContext> {
-	if (proxy) {
+async function createContext(
+	browser: Browser,
+	proxy: ProxyConfig | undefined,
+	ignoreHTTPSErrors?: boolean,
+): Promise<BrowserContext> {
+	if (proxy || ignoreHTTPSErrors !== undefined) {
 		return browser.newContext({
-			proxy,
+			...(proxy ? { proxy } : {}),
+			...(ignoreHTTPSErrors !== undefined ? { ignoreHTTPSErrors } : {}),
 		});
 	}
 
@@ -212,17 +229,16 @@ function isSessionUsable(session: IStoredSession): boolean {
 	return browserIsConnected && !contextIsClosed;
 }
 
-async function ensurePage(browser: Browser, context: BrowserContext, page: Page): Promise<Page> {
+async function ensurePage(context: BrowserContext, page: Page): Promise<Page> {
 	if (!page.isClosed()) {
 		return page;
 	}
 
-	const freshContext = browser.contexts()[0] || context || (await browser.newContext());
-	const existingPage = freshContext.pages()[0];
+	const existingPage = context.pages()[0];
 
 	if (existingPage && !existingPage.isClosed()) {
 		return existingPage;
 	}
 
-	return freshContext.newPage();
+	return context.newPage();
 }

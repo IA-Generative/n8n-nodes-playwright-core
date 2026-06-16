@@ -247,3 +247,30 @@ test('downloadFile downloads a file from a direct URL', async () => {
     assert.equal(prepared[0].buffer.toString('utf8'), 'hello from test file');
 });
 
+test('downloadFile blocks a forbidden file URL from an element href', async () => {
+    await page.setContent(`
+		<html>
+			<body>
+				<a id="download-link" href="file:///etc/passwd">Download</a>
+			</body>
+		</html>
+	`);
+
+    const executeFunctions = createFakeExecuteFunctions({
+        downloadSource: 'element',
+        downloadPropertyName: 'data',
+        selectorType: 'css',
+        selector: '#download-link',
+        downloadOptions: {
+            clickTimeout: 1000,
+            waitTimeout: 1000,
+            preferPopupPage: true,
+        },
+    });
+
+    await assert.rejects(
+        () => handleOperation('downloadFile', page, executeFunctions, 0),
+        /Protocol "file" is not allowed/,
+    );
+});
+

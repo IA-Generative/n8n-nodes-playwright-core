@@ -1,5 +1,6 @@
 import { IExecuteFunctions, INodeExecutionData, NodeOperationError } from 'n8n-workflow';
 import { Download, Page, Response } from 'playwright-core';
+import { resolveAndAssertAllowedUrl } from './protocols';
 
 type FillField = {
 	selector: string;
@@ -345,7 +346,7 @@ async function handleDownloadFromUrl(
 			(executeFunctions.getNodeParameter('downloadFileName', itemIndex, '') as string) || ''
 		).trim() || undefined;
 
-	const downloadUrl = resolveUrl(rawDownloadUrl, page.url());
+	const downloadUrl = resolveAndAssertAllowedUrl(rawDownloadUrl, page.url());
 	const errors: string[] = [];
 
 	const fetchedInPage = await safely(
@@ -378,9 +379,9 @@ async function handleDownloadFromUrl(
 				item: itemIndex,
 			},
 		};
-	} else {
-		errors.push('browser-fetch-url failed');
 	}
+
+	errors.push('browser-fetch-url failed');
 
 	const fetchedByRequest = await safely(
 		fetchFileFromUrl(executeFunctions, page, downloadUrl, fallbackFileName),
@@ -412,9 +413,9 @@ async function handleDownloadFromUrl(
 				item: itemIndex,
 			},
 		};
-	} else {
-		errors.push('playwright-request-fetch failed');
 	}
+
+	errors.push('playwright-request-fetch failed');
 
 	const cookieHeader = await getCookieHeader(page, downloadUrl);
 	const fetchedByNode = await safely(
@@ -447,9 +448,9 @@ async function handleDownloadFromUrl(
 				item: itemIndex,
 			},
 		};
-	} else {
-		errors.push('node-fetch-url failed');
 	}
+
+	errors.push('node-fetch-url failed');
 
 	throw new NodeOperationError(
 		executeFunctions.getNode(),
@@ -478,7 +479,11 @@ async function handleDownloadFromElement(
 	const context = page.context();
 
 	const href = await locator.getAttribute('href').catch(() => null);
-	const absoluteHref = href ? resolveUrl(href, page.url()) : null;
+	const isJavaScriptHref = href?.trim().toLowerCase().startsWith('javascript:') ?? false;
+	const absoluteHref =
+		href && !isJavaScriptHref
+			? resolveAndAssertAllowedUrl(href, page.url())
+			: null;
 
 	const popupPromise = safely(context.waitForEvent('page', { timeout: waitTimeout }));
 	const downloadPromise = safely(page.waitForEvent('download', { timeout: waitTimeout }));
@@ -722,7 +727,7 @@ async function handleDownloadFromElement(
 
 			try {
 				await popupPage.close();
-			} catch {}
+			} catch { }
 
 			return {
 				binary: {
@@ -747,9 +752,10 @@ async function handleDownloadFromElement(
 			};
 		}
 
-		const popupUrl = popupPage.url();
+		const rawPopupUrl = popupPage.url();
 
-		if (popupUrl && !isViewerLikeUrl(popupUrl)) {
+		if (rawPopupUrl && !isViewerLikeUrl(rawPopupUrl)) {
+			const popupUrl = resolveAndAssertAllowedUrl(rawPopupUrl);
 			const popupFetchResponse = await popupPage.context().request.get(popupUrl);
 			const contentType = popupFetchResponse.headers()['content-type'] || '';
 			const contentDisposition = popupFetchResponse.headers()['content-disposition'] || '';
@@ -774,7 +780,7 @@ async function handleDownloadFromElement(
 
 				try {
 					await popupPage.close();
-				} catch {}
+				} catch { }
 
 				return {
 					binary: {

@@ -28,7 +28,7 @@ This node supports the following operations:
 * **Fill Form**: Fill one or more form fields using CSS selectors or XPath
 * **Take Screenshot**: Capture the current page as binary data
 * **Download File**: Download a file either from a clicked element or a direct URL
-* **Run Custom Script**: Execute custom JavaScript code with access to Playwright and n8n helpers
+* **Run Custom Script**: Execute custom JavaScript with access to Playwright and n8n helpers. This operation is disabled by default
 * **Close Session**: Explicitly close a previously opened browser session
 
 ### Selectors and form filling
@@ -97,9 +97,9 @@ A custom session ID can be used to reuse a specific browser session across multi
 
 When no explicit session ID is provided, the node first tries to reuse the session propagated by the previous Playwright node. If none is available, it generates a random UUID.
 
-### Ignore HTTPS errors
+### Ignore SSL Issues (Insecure)
 
-The **Ignore HTTPS Errors** option allows the browser context to ignore TLS certificate errors such as:
+The **Ignore SSL Issues (Insecure)** option allows the browser context to ignore TLS certificate errors such as:
 
 * Self-signed certificates
 * Certificates issued by an unknown authority
@@ -195,11 +195,37 @@ Browser-internal protocols such as `about:`, `blob:`, `data:`, and `chrome-exten
 
 ## Custom Scripts
 
-The **Run Custom Script** operation gives you direct access to the current Playwright session and useful n8n helpers inside a sandboxed JavaScript environment.
+The **Run Custom Script** operation is disabled by default for security reasons.
+
+Custom scripts receive direct access to powerful Playwright objects such as `$page`, `$browser`, and `$playwright`. This access can bypass restrictions enforced by the standard node operations and must only be enabled for trusted workflow authors.
+
+### Enabling custom scripts
+
+Administrators can enable the operation with the following n8n environment variable:
+
+```yaml
+- N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED=true
+```
+
+The value is case-insensitive. Values such as `true`, `TRUE`, and `True` are accepted.
+
+When the variable is absent, empty, or set to any value other than `true`:
+
+* The **Run Custom Script** operation is hidden from the node interface
+* The script editor and related fields are removed from the interface
+* Existing workflows using `runCustomScript` fail with an explicit error during execution
+
+To keep custom scripts explicitly disabled:
+
+```yaml
+- N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED=false
+```
+
+> ⚠️ Enabling custom scripts grants workflow authors direct access to Playwright APIs and should only be done in trusted environments.
 
 ### Available variables
 
-Your script can access:
+When the feature is enabled, scripts can access:
 
 * `$page` - current Playwright page
 * `$browser` - current Playwright browser
@@ -208,17 +234,16 @@ Your script can access:
 * `$json` - current input item JSON
 * `$input` - access to input data
 * `$getNodeParameter()` - access node parameters
-* other standard n8n Code node variables available through the workflow data proxy
+* Other standard n8n Code node variables available through the workflow data proxy
 
 ### Notes
 
-* Your script must return an array of items
+* The script must return an array of items
 * Binary data can be created with `$helpers.prepareBinaryData()`
 * `console.log()` output is available in manual executions
 * The script runs in a sandboxed VM environment
-* Custom scripts have access to raw Playwright objects and must only be available to trusted workflow authors
-
-The protocol restrictions protect the browser context managed by the node, but they must not be treated as a complete sandbox boundary for arbitrary custom Playwright code.
+* The feature flag controls availability but does not restrict the Playwright APIs exposed when custom scripts are enabled
+* Protocol restrictions applied by the standard node operations must not be treated as a complete sandbox boundary for arbitrary custom Playwright code
 
 ### Example
 
@@ -281,6 +306,7 @@ services:
       - N8N_COMMUNITY_PACKAGES_ENABLED=true
       - N8N_CUSTOM_EXTENSIONS=/opt/custom-nodes
       - N8N_PLAYWRIGHT_NODE_PROTOCOLS=[]
+      - N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED=false
 
   playwright:
     image: ghcr.io/ia-generative/playwright:v1.58.2-jammy-browsers
@@ -451,12 +477,24 @@ npm install playwright@1.58.2
 
 ## Version history
 
+### 2.0.0
+
+* Disabled **Run Custom Script** by default for security reasons
+* Added `N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED` to explicitly enable custom scripts
+* Removed the Custom Script operation and related fields from the node interface when the feature is disabled
+* Added a server-side execution guard for existing workflows containing `runCustomScript`
+* Added unit tests covering the feature flag and conditional node interface
+* Documented the security implications of enabling direct Playwright script access
+
+> ⚠️ **Breaking change:** Existing workflows using **Run Custom Script** require `N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED=true` after upgrading.
+
 ### 1.2.0
 
-* Added an **Ignore HTTPS Errors** browser connection option for trusted environments using unrecognized TLS certificates
+* Added an **Ignore SSL Issues (Insecure)** browser connection option for trusted environments using unrecognized TLS certificates
 * Restricted user-provided URLs to `http` and `https` by default
 * Added `N8N_PLAYWRIGHT_NODE_PROTOCOLS` to explicitly allow additional protocols
 * Added protocol validation for navigation, downloads, element links, redirects, form submissions, and popups
+* Added unit and integration tests for protocol restrictions
 
 ### 1.0.0
 

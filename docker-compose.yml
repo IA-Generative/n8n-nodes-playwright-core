@@ -15,6 +15,7 @@ services:
       - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
       - N8N_CUSTOM_EXTENSIONS=/opt/custom-nodes
       - N8N_PLAYWRIGHT_NODE_PROTOCOLS=[]
+      - N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED=false
 
       # Proxy configuration read by the custom Playwright node
       - HTTP_PROXY=http://proxy:8080

@@ -15,6 +15,7 @@ import {
 	resolveSessionKey,
 } from './sessionStore';
 import { resolveAndAssertAllowedUrl } from './protocols';
+import { isCustomScriptEnabled } from './customScriptFeature';
 
 function resolveProxyTargetUrl(
 	executeFunctions: IExecuteFunctions,
@@ -658,12 +659,40 @@ return [{
 		],
 	};
 
+	constructor() {
+		if (isCustomScriptEnabled()) {
+			return;
+		}
+
+		const operationProperty = this.description.properties.find(
+			(property) => property.name === 'operation',
+		);
+
+		if (operationProperty?.type === 'options' && operationProperty.options) {
+			operationProperty.options = operationProperty.options.filter(
+				(option) => !('value' in option) || option.value !== 'runCustomScript',
+			);
+		}
+
+		this.description.properties = this.description.properties.filter(
+			(property) => property.name !== 'scriptCode' && property.name !== 'notice',
+		);
+	}
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
 		for (let i = 0; i < items.length; i++) {
 			const operation = this.getNodeParameter('operation', i) as string;
+
+			if (operation === 'runCustomScript' && !isCustomScriptEnabled()) {
+				throw new NodeOperationError(
+					this.getNode(),
+					'Run Custom Script is disabled. Set N8N_PLAYWRIGHT_NODE_CUSTOM_SCRIPT_ENABLED=true to enable it.',
+					{ itemIndex: i },
+				);
+			}
 
 			const playwrightMeta = items[i].json?.playwright as Record<string, unknown> | undefined;
 			const propagatedSessionKey = playwrightMeta?.sessionKey as string | undefined;
